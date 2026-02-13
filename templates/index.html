@@ -4,64 +4,225 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Flight Routing Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
   <link
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
     rel="stylesheet"
     integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
     crossorigin="anonymous"
   >
+  <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg-start: #f4f8ff;
+      --bg-end: #fef8ee;
+      --surface: #ffffff;
+      --surface-soft: #f8fafd;
+      --ink: #15233b;
+      --muted: #5f6f89;
+      --brand: #0f6bcf;
+      --brand-strong: #0c55a3;
+      --accent: #f28a21;
+      --line: #dce6f5;
+      --success-soft: #ebfbf2;
+    }
+
+    body {
+      font-family: "Manrope", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, #cde4ff 0%, transparent 60%),
+        radial-gradient(1000px 400px at 95% 0%, #ffe8c7 0%, transparent 60%),
+        linear-gradient(160deg, var(--bg-start), var(--bg-end));
+      min-height: 100vh;
+    }
+
+    .hero-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: 0 22px 60px rgba(19, 38, 68, 0.12);
+      animation: rise 0.5s ease both;
+    }
+
+    .hero-title {
+      font-family: "Fraunces", serif;
+      letter-spacing: -0.01em;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtle {
+      color: var(--muted);
+    }
+
+    .section-label {
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--brand-strong);
+      font-weight: 800;
+      margin-bottom: 0.6rem;
+    }
+
+    .block {
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1rem;
+    }
+
+    .mode-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1rem;
+      background: #fff;
+      transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+    }
+
+    .mode-card:hover {
+      border-color: #c7d8f2;
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(17, 45, 83, 0.09);
+    }
+
+    .mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+
+    .mode-tab {
+      width: 100%;
+      text-align: left;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem;
+      font-weight: 700;
+      color: #2a3f63;
+      transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    .mode-tab:hover {
+      border-color: #c7d8f2;
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(17, 45, 83, 0.09);
+    }
+
+    .mode-tab.active {
+      background: #eaf3ff;
+      border-color: #90b9ea;
+      color: var(--brand-strong);
+      box-shadow: 0 10px 24px rgba(17, 45, 83, 0.09);
+    }
+
+    @media (min-width: 768px) {
+      .mode-tabs {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    .btn-brand {
+      background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+      border: none;
+      color: #fff;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      border-radius: 12px;
+      min-height: 46px;
+    }
+
+    .btn-brand:hover {
+      background: linear-gradient(135deg, #0d5eb7, #0a4f98);
+    }
+
+    .route-error {
+      color: #b02a37;
+      font-size: 0.9rem;
+      display: none;
+      margin-top: 0.35rem;
+    }
+
+    .ts-control {
+      border-radius: 10px !important;
+      min-height: 44px;
+      border-color: #cfdcf0 !important;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
 </head>
-<body class="bg-light">
+<body>
   <main class="container py-5">
     <div class="row justify-content-center">
-      <div class="col-12 col-md-10 col-lg-8 col-xl-7">
-        <div class="card shadow-sm border-0">
+      <div class="col-12 col-md-11 col-lg-9 col-xl-8">
+        <div class="hero-card">
           <div class="card-body p-4 p-md-5">
-            <h1 class="h3 mb-2">Flight Routing Dashboard</h1>
-            <p class="text-secondary mb-4">Select your route and optimization mode.</p>
+            <p class="section-label">Flight Planner</p>
+            <h1 class="hero-title h2">Build the best route in seconds</h1>
+            <p class="subtle mb-4">Search across your route network and optimize by distance, fare estimate, or stops.</p>
 
-            <form method="post" action="/search" class="row g-3">
-              <div class="col-12 col-md-6">
-                <label for="src" class="form-label">From</label>
-                <select id="src" name="src" class="form-select" required>
-                  {% for code, name in airports.items() %}
-                    <option value="{{ code }}">{{ code }} - {{ name }}</option>
-                  {% endfor %}
-                </select>
-              </div>
+            <form method="post" action="/search" class="row g-4" id="route-form" novalidate>
+              <div class="col-12">
+                <div class="block">
+                  <p class="section-label mb-3">Route</p>
+                  <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                      <label for="src" class="form-label fw-semibold">From</label>
+                      <select id="src" name="src" class="form-select" required>
+                        <option value="">Choose departure airport</option>
+                        {% for code, name in airports.items() %}
+                          <option value="{{ code }}">{{ code }} - {{ name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
 
-              <div class="col-12 col-md-6">
-                <label for="dst" class="form-label">To</label>
-                <select id="dst" name="dst" class="form-select" required>
-                  {% for code, name in airports.items() %}
-                    <option value="{{ code }}">{{ code }} - {{ name }}</option>
-                  {% endfor %}
-                </select>
+                    <div class="col-12 col-md-6">
+                      <label for="dst" class="form-label fw-semibold">To</label>
+                      <select id="dst" name="dst" class="form-select" required>
+                        <option value="">Choose arrival airport</option>
+                        {% for code, name in airports.items() %}
+                          <option value="{{ code }}">{{ code }} - {{ name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </div>
+                  <p id="same-route-error" class="route-error mb-0">Departure and arrival airports must be different.</p>
+                </div>
               </div>
 
               <div class="col-12">
-                <fieldset>
-                  <legend class="col-form-label pt-0 mb-2">Optimization Mode</legend>
-
-                  <div class="form-check">
-                    <input class="form-check-input" type="radio" name="mode" id="mode-distance" value="distance" checked>
-                    <label class="form-check-label" for="mode-distance">Shortest distance</label>
+                <div class="block">
+                  <p class="section-label mb-3">Optimization</p>
+                  <input type="hidden" name="mode" id="mode" value="distance">
+                  <div class="mode-tabs" role="tablist" aria-label="Optimization mode">
+                    <button type="button" class="mode-tab active" data-mode="distance" aria-pressed="true">Shortest distance</button>
+                    <button type="button" class="mode-tab" data-mode="price" aria-pressed="false">Cheapest price</button>
+                    <button type="button" class="mode-tab" data-mode="stops" aria-pressed="false">Fewest stops</button>
                   </div>
-
-                  <div class="form-check">
-                    <input class="form-check-input" type="radio" name="mode" id="mode-price" value="price">
-                    <label class="form-check-label" for="mode-price">Cheapest price</label>
-                  </div>
-
-                  <div class="form-check">
-                    <input class="form-check-input" type="radio" name="mode" id="mode-stops" value="stops">
-                    <label class="form-check-label" for="mode-stops">Fewest stops</label>
-                  </div>
-                </fieldset>
+                </div>
               </div>
 
-              <div class="col-12 d-grid d-sm-flex justify-content-sm-end">
-                <button type="submit" class="btn btn-primary px-4">Find Route</button>
+              <div class="col-12 d-grid d-md-flex justify-content-md-end">
+                <button type="submit" class="btn btn-brand px-4 w-100 w-md-auto" id="submit-btn">
+                  <span class="submit-label">Find Route</span>
+                  <span class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true" id="submit-spinner"></span>
+                </button>
               </div>
             </form>
           </div>
@@ -69,5 +230,59 @@
       </div>
     </div>
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+  <script>
+    const srcEl = document.getElementById("src");
+    const dstEl = document.getElementById("dst");
+    const formEl = document.getElementById("route-form");
+    const submitBtn = document.getElementById("submit-btn");
+    const submitSpinner = document.getElementById("submit-spinner");
+    const submitLabel = submitBtn.querySelector(".submit-label");
+    const sameRouteError = document.getElementById("same-route-error");
+    const modeInput = document.getElementById("mode");
+    const modeTabs = document.querySelectorAll(".mode-tab");
+
+    if (window.TomSelect) {
+      new TomSelect(srcEl, { create: false, sortField: { field: "text", direction: "asc" } });
+      new TomSelect(dstEl, { create: false, sortField: { field: "text", direction: "asc" } });
+    }
+
+    function valuesAreSame() {
+      return srcEl.value && dstEl.value && srcEl.value === dstEl.value;
+    }
+
+    function updateRouteValidation() {
+      const invalid = valuesAreSame();
+      sameRouteError.style.display = invalid ? "block" : "none";
+      srcEl.setCustomValidity(invalid ? "Please choose different airports." : "");
+      dstEl.setCustomValidity(invalid ? "Please choose different airports." : "");
+    }
+
+    srcEl.addEventListener("change", updateRouteValidation);
+    dstEl.addEventListener("change", updateRouteValidation);
+    modeTabs.forEach((tab) => {
+      tab.addEventListener("click", function () {
+        const selectedMode = this.dataset.mode;
+        modeInput.value = selectedMode;
+        modeTabs.forEach((item) => {
+          const isActive = item === this;
+          item.classList.toggle("active", isActive);
+          item.setAttribute("aria-pressed", isActive ? "true" : "false");
+        });
+      });
+    });
+
+    formEl.addEventListener("submit", function (event) {
+      updateRouteValidation();
+      if (!formEl.checkValidity()) {
+        event.preventDefault();
+        formEl.classList.add("was-validated");
+        return;
+      }
+      submitBtn.disabled = true;
+      submitSpinner.classList.remove("d-none");
+      submitLabel.textContent = "Finding route...";
+    });
+  </script>
 </body>
 </html>
