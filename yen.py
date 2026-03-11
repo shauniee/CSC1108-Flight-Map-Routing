@@ -1,4 +1,5 @@
 import heapq
+import itertools
 
 from copy import deepcopy
 from dijkstra import Dijkstra
@@ -31,6 +32,7 @@ class Yen:
             'details' : self.dijkstra.getRouteDetails(path) }]
 
         B = []
+        queue_counter = itertools.count()
 
         for pathIndex in range(1, k):
             prev = A[pathIndex-1]['path']
@@ -61,7 +63,7 @@ class Yen:
                     }
 
                     if self.validCandidate(candidate, A, B):
-                        heapq.heappush(B, (candidate['dist'], len(B), candidate))
+                        heapq.heappush(B, (candidate['dist'], next(queue_counter), candidate))
                         pathsFound += 1
 
             if not B:
@@ -131,7 +133,6 @@ class Yen:
     def returnData(self, paths):
         result = []
         for i, pathData in enumerate(paths, 1):
-
             dist = pathData.get('dist', 0)
             time = pathData.get('time', 0)
             connections = pathData.get('connections', len(pathData['path']) - 1)
@@ -139,10 +140,10 @@ class Yen:
             pathDict = {
                 'rank': i,
                 'path': pathData['path'],
-                'path_display': ' → '.join(pathData['path']),
-                'dist': pathData['distance'],
-                'time': pathData['time'],
-                'connections': pathData['connections'],
+                'path_display': ' -> '.join(pathData['path']),
+                'dist': dist,
+                'time': time,
+                'connections': connections,
                 'segments': []
             }
             
