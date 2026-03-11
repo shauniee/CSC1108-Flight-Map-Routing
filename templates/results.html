@@ -200,7 +200,8 @@
   {% set mode_labels = {
     "distance": "Shortest distance",
     "price": "Cheapest price",
-    "stops": "Fewest stops"
+    "stops": "Fewest stops",
+    "alternative": "Alternative (Yen)"
   } %}
 
   {% if result is mapping %}
@@ -336,15 +337,15 @@
           </div>
         </div>
 
-        {% if routes and routes|length > 1 %}
+        {% if routes and routes|length > 0 %}
           <div class="panel mb-4">
             <div class="card-body p-4 p-md-5">
-              <h2 class="h5 mb-3">Alternative Options</h2>
+              <h2 class="h5 mb-3">Alternative Routes</h2>
               <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                   <thead>
                     <tr>
-                      <th scope="col">Optimization</th>
+                      <th scope="col">Rank</th>
                       <th scope="col">Route</th>
                       <th scope="col">Distance</th>
                       <th scope="col">Price</th>
@@ -354,7 +355,7 @@
                   <tbody>
                     {% for item in routes %}
                       <tr>
-                        <td>{{ mode_labels.get(item.get("mode"), item.get("mode", "N/A")|title) }}</td>
+                        <td>{{ loop.index }}</td>
                         <td>
                           {% set route = item.get("route", []) %}
                           {% if route %}
@@ -501,7 +502,5 @@
   </script>
 </body>
 </html>
-
-
 
 

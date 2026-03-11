@@ -208,43 +208,32 @@ class RouteService:
         if source_code not in self.weighted_graph.graph or destination_code not in self.weighted_graph.graph:
             return {"best": None, "routes": []}
 
-        route_candidates = []
-
+        selected_mode = mode if mode in ("distance", "price", "stops") else "distance"
         shortest_path_codes, _, _ = self.dijkstra_solver.findShortestPath(source_code, destination_code)
-        if shortest_path_codes:
-            route_candidates.append(shortest_path_codes)
+        if not shortest_path_codes:
+            return {"best": None, "routes": []}
 
+        # Best route is always computed from Dijkstra shortest path only.
+        best = self._build_result_from_route(shortest_path_codes, selected_mode)
+        if best:
+            best["mode"] = selected_mode
+
+        # Yen is used only for alternative routes shown after the map section.
+        alternatives = []
+        seen_paths = {tuple(shortest_path_codes)}
         k_paths = self.yen_solver.findKShortestPath(source_code, destination_code, k=8) or []
         for path_info in k_paths:
             path = path_info.get("path")
-            if path:
-                route_candidates.append(path)
-
-        unique_candidates = []
-        seen = set()
-        for path in route_candidates:
-            key = tuple(path)
-            if key in seen:
+            if not path:
                 continue
-            seen.add(key)
-            unique_candidates.append(path)
+            path_key = tuple(path)
+            if path_key in seen_paths:
+                continue
+            seen_paths.add(path_key)
 
-        if not unique_candidates:
-            return {"best": None, "routes": []}
+            alternative = self._build_result_from_route(path, "distance")
+            if alternative:
+                alternative["mode"] = "alternative"
+                alternatives.append(alternative)
 
-        best_by_mode = {}
-        for mode_name in ("distance", "price", "stops"):
-            mode_results = []
-            for path in unique_candidates:
-                formatted = self._build_result_from_route(path, mode_name)
-                if formatted:
-                    mode_results.append(formatted)
-
-            best_route = self._pick_best_route(mode_results, mode_name)
-            if best_route:
-                best_route["mode"] = mode_name
-                best_by_mode[mode_name] = best_route
-
-        best = best_by_mode.get(mode) or best_by_mode.get("distance")
-        candidates = [best_by_mode[m] for m in ("distance", "price", "stops") if m in best_by_mode]
-        return {"best": best, "routes": candidates}
+        return {"best": best, "routes": alternatives}
