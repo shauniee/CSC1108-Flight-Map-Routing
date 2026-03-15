@@ -30,7 +30,7 @@ def search():
             result={"best": None, "routes": []},
         )
 
-    result = route_service.compute_algorithm_results(src, dst, mode)
+    result = route_service.computeAlgorithmResults(src, dst, mode)
     return render_template("results.html", src=src, dst=dst, mode=mode, result=result)
 
 

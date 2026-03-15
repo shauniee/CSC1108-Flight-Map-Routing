@@ -4,8 +4,9 @@ import itertools
 from copy import deepcopy
 from dijkstra import Dijkstra
 
+
 class Yen:
-    def __init__ (self, graph, dijkstra=None):
+    def __init__(self, graph, dijkstra=None):
         self.graph = graph
         self.graphDictionary = graph.graph
         if dijkstra is None:
@@ -25,14 +26,14 @@ class Yen:
             return []
         
         A = [{ 
-            'path' : path,
-            'dist' : dist,
-            'time' : time,
-            'connections' : len(path) - 1,
-            'details' : self.dijkstra.getRouteDetails(path) }]
+            'path': path,
+            'dist': dist,
+            'time': time,
+            'connections': len(path) - 1,
+            'details': self.dijkstra.getRouteDetails(path) }]
 
         B = []
-        queue_counter = itertools.count()
+        queueCounter = itertools.count()
 
         for pathIndex in range(1, k):
             prev = A[pathIndex-1]['path']
@@ -63,7 +64,7 @@ class Yen:
                     }
 
                     if self.validCandidate(candidate, A, B):
-                        heapq.heappush(B, (candidate['dist'], next(queue_counter), candidate))
+                        heapq.heappush(B, (candidate['dist'], next(queueCounter), candidate))
                         pathsFound += 1
 
             if not B:
@@ -75,7 +76,6 @@ class Yen:
             A.append(bestCandidate)
 
         return A
-
 
     def updateGraph(self, A, prevPath, index, start, end):
         updatedGraph = {}

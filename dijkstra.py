@@ -1,4 +1,3 @@
-# dijkstra.py
 import heapq
 from copy import deepcopy
 from loadDataset import WeightedGraph
@@ -34,53 +33,53 @@ class Dijkstra:
         times[start] = 0
         
         # Priority queue: (distance, node)
-        priority_queue = [(0, start)]
+        priorityQueue = [(0, start)]
         visited = set()
         
-        while priority_queue:
-            current_distance, current_node = heapq.heappop(priority_queue)
+        while priorityQueue:
+            currentDistance, currentNode = heapq.heappop(priorityQueue)
             
-            if current_node in visited:
+            if currentNode in visited:
                 continue
                 
-            visited.add(current_node)
+            visited.add(currentNode)
             
             # Early exit if we reached destination
-            if current_node == end:
+            if currentNode == end:
                 break
             
             # Skip if no neighbors
-            if current_node not in self.graphDictionary:
+            if currentNode not in self.graphDictionary:
                 continue
                 
             # Explore neighbors
-            for neighbor, edge_data in self.graphDictionary[current_node].items():
+            for neighbor, edgeData in self.graphDictionary[currentNode].items():
                 if neighbor in visited:
                     continue
                 
                 # Calculate new distance
-                new_distance = distances[current_node] + edge_data['distance']
+                newDistance = distances[currentNode] + edgeData['distance']
                 
                 # Get time from edge data
-                leg_time = edge_data.get('time', 0)
-                new_time = times[current_node] + leg_time
+                legTime = edgeData.get('time', 0)
+                newTime = times[currentNode] + legTime
                 
                 # If we found a shorter path
-                if new_distance < distances[neighbor]:
-                    distances[neighbor] = new_distance
-                    times[neighbor] = new_time
-                    previous[neighbor] = current_node
-                    heapq.heappush(priority_queue, (new_distance, neighbor))
+                if newDistance < distances[neighbor]:
+                    distances[neighbor] = newDistance
+                    times[neighbor] = newTime
+                    previous[neighbor] = currentNode
+                    heapq.heappush(priorityQueue, (newDistance, neighbor))
         
         # Reconstruct path
-        path = self._reconstruct_path(previous, start, end)
+        path = self._reconstructPath(previous, start, end)
         
         if path:
             return path, distances[end], times[end]
         else:
             return None, None, None
     
-    def _reconstruct_path(self, previous: dict, start: str, end: str):
+    def _reconstructPath(self, previous: dict, start: str, end: str):
         """Reconstruct the path from start to end"""
         path = []
         current = end
@@ -101,8 +100,8 @@ class Dijkstra:
     
     def getName(self, code: str) -> str:
         """Get display name for an airport"""
-        if code in self.airportGraph.airport_data:
-            data = self.airportGraph.airport_data[code]
+        if code in self.airportGraph.airportData:
+            data = self.airportGraph.airportData[code]
             return data.get('display_name', data.get('name', code))
         return code
     
@@ -122,21 +121,21 @@ class Dijkstra:
         }
         
         for i in range(len(path) - 1):
-            from_code = path[i]
-            to_code = path[i + 1]
+            fromCode = path[i]
+            toCode = path[i + 1]
             
-            if from_code in self.graphDictionary and to_code in self.graphDictionary[from_code]:
-                edge = self.graphDictionary[from_code][to_code]
+            if fromCode in self.graphDictionary and toCode in self.graphDictionary[fromCode]:
+                edge = self.graphDictionary[fromCode][toCode]
                 
                 # Get airport names if available
-                from_name = self.getName(from_code)
-                to_name = self.getName(to_code)
+                fromName = self.getName(fromCode)
+                toName = self.getName(toCode)
                 
                 segment = {
-                    'from': from_code,
-                    'from_name': from_name,
-                    'to': to_code,
-                    'to_name': to_name,
+                    'from': fromCode,
+                    'from_name': fromName,
+                    'to': toCode,
+                    'to_name': toName,
                     'distance': edge['distance'],
                     'time': edge.get('time', 0)
                 }
