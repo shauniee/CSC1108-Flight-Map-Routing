@@ -306,6 +306,7 @@ class RouteService:
     # route_service.py (updated computeAlgorithmResults method)
     def computeAlgorithmResults(self, sourceCode, destinationCode, mode):
         if sourceCode not in self.weightedGraph.graph or destinationCode not in self.weightedGraph.graph:
+            print(f"Airport not found: {sourceCode} or {destinationCode}")
             return {"best": None, "routes": []}
 
         # Map UI mode to weight type
@@ -313,18 +314,23 @@ class RouteService:
         if mode == 'price':
             weight_type = 'price'
         elif mode == 'stops':
-            # For stops, we still use distance but we'll sort by stops later
-            weight_type = 'distance'
+            weight_type = 'distance'  # Still use distance for stops optimization
         else:
             weight_type = 'distance'
 
-        # Find shortest path based on selected weight type
+        print(f"Finding path from {sourceCode} to {destinationCode} using {weight_type} optimization")
+        
+        # Find shortest path based on selected weight type with max 2 transits
         shortestPathCodes, total_dist, total_time, total_price = self.dijkstraSolver.findShortestPath(
             sourceCode, destinationCode, weight_type
         )
         
         if not shortestPathCodes:
+            print(f"No path found from {sourceCode} to {destinationCode} within transit limit")
             return {"best": None, "routes": []}
+
+        print(f"Found path: {' -> '.join(shortestPathCodes)}")
+        print(f"Distance: {total_dist}, Time: {total_time}, Price: {total_price}")
 
         # Best route is computed based on selected mode
         best = self._buildResultFromRoute(shortestPathCodes, mode)
@@ -334,21 +340,44 @@ class RouteService:
             best["distance_exact"] = total_dist
             best["price"] = total_price if mode == 'price' else best.get("price", total_price)
             best["flight_minutes"] = total_time
+            best["stops"] = len(shortestPathCodes) - 2  # Ensure stops count is accurate
 
-        # Yen is used for alternative routes
+        # Yen is used for alternative routes with same transit limit
         alternatives = []
         seenPaths = {tuple(shortestPathCodes)}
         
-        # Get k-shortest paths based on the same weight type
-        kPaths = self.yenSolver.findKShortestPath(sourceCode, destinationCode, k=8, weight_type=weight_type) or []
+        # Get k-shortest paths based on the same weight type with max 2 transits
+        try:
+            kPaths = self.yenSolver.findKShortestPath(
+                sourceCode, destinationCode, k=8, weight_type=weight_type
+            ) or []
+        except Exception as e:
+            print(f"Error in Yen's algorithm: {e}")
+            kPaths = []
+        
+        # Ensure kPaths is a list
+        if not isinstance(kPaths, list):
+            kPaths = []
+        
+        print(f"Found {len(kPaths)} alternative paths from Yen's algorithm")
         
         for pathInfo in kPaths:
+            # Skip if pathInfo is not a dictionary
+            if not isinstance(pathInfo, dict):
+                continue
+                
             path = pathInfo.get("path")
             if not path:
                 continue
+                
             pathKey = tuple(path)
             if pathKey in seenPaths:
                 continue
+                
+            # Verify transit count (should already be enforced, but double-check)
+            if len(path) - 2 > 2:
+                continue
+                
             seenPaths.add(pathKey)
 
             alternative = self._buildResultFromRoute(path, mode)
@@ -358,6 +387,7 @@ class RouteService:
                 alternative["distance_exact"] = pathInfo.get("dist", 0)
                 alternative["price"] = pathInfo.get("price", 0)
                 alternative["flight_minutes"] = pathInfo.get("time", 0)
+                alternative["stops"] = len(path) - 2
                 alternatives.append(alternative)
 
         # Sort alternatives based on mode
@@ -368,4 +398,13 @@ class RouteService:
         else:  # distance
             alternatives.sort(key=lambda x: x.get("distance_exact", float("inf")))
 
-        return {"best": best, "routes": alternatives}
+        # Limit alternatives to top 5 for display
+        alternatives = alternatives[:5]
+
+        result = {
+            "best": best, 
+            "routes": alternatives
+        }
+        
+        print(f"Returning best route and {len(alternatives)} alternatives")
+        return result
