@@ -1,6 +1,8 @@
 # loadDataset.py
 import json
 from pathlib import Path
+from copy import deepcopy
+
 
 class WeightedGraph:
     def __init__(self):
@@ -71,6 +73,114 @@ class WeightedGraph:
                         'carriers': carriers
                     }
     
+    def createModifiedCopy(self, removed_edges=None, removed_nodes=None):
+        """
+        Create a modified copy of this graph
+        
+        Args:
+            removed_edges: List of tuples (from_node, to_node) to remove
+            removed_nodes: List of nodes to isolate (remove all connections)
+            
+        Returns:
+            A new WeightedGraph instance with modifications
+        """
+        removed_edges = removed_edges or []
+        removed_nodes = removed_nodes or []
+        
+        # Create deep copy of the graph dictionary
+        modified_graph_dict = {}
+        for airport, connections in self.graph.items():
+            modified_graph_dict[airport] = deepcopy(connections)
+        
+        # Remove specified edges
+        for from_node, to_node in removed_edges:
+            if from_node in modified_graph_dict and to_node in modified_graph_dict[from_node]:
+                del modified_graph_dict[from_node][to_node]
+        
+        # Remove specified nodes (isolate them by clearing their outgoing edges
+        # and removing incoming edges)
+        for node in removed_nodes:
+            if node in modified_graph_dict:
+                modified_graph_dict[node] = {}
+            
+            # Remove incoming edges to this node
+            for airport in list(modified_graph_dict.keys()):
+                if node in modified_graph_dict[airport]:
+                    del modified_graph_dict[airport][node]
+        
+        # Create new WeightedGraph instance with modifications
+        modified_graph = WeightedGraph()
+        modified_graph.airportData = self.airportData  # Share airport data
+        modified_graph.graph = modified_graph_dict
+        
+        return modified_graph
+    
+    def createGraphForYenSpur(self, accepted_paths, prev_path, spur_index):
+        """
+        Convenience method to create a graph for Yen's algorithm spur path calculation
+        
+        Args:
+            accepted_paths: List of already accepted paths (from Yen's A list)
+            prev_path: The previous path being processed
+            spur_index: The spur node index
+            
+        Returns:
+            Modified WeightedGraph for spur path calculation
+        """
+        removed_edges = []
+        
+        # Validate inputs
+        if not prev_path or spur_index >= len(prev_path):
+            return self.createModifiedCopy()  # Return unmodified copy if invalid
+        
+        # Remove edges from accepted paths that share the root path
+        for path_data in accepted_paths:
+            if not isinstance(path_data, dict):
+                continue
+                
+            path = path_data.get('path', [])
+            if not path or len(path) <= spur_index + 1:
+                continue
+                
+            from_node = path[spur_index]
+            to_node = path[spur_index + 1]
+            removed_edges.append((from_node, to_node))
+        
+        # Remove nodes in root path (except spur node)
+        removed_nodes = []
+        if spur_index > 0:
+            removed_nodes = prev_path[:spur_index]
+        
+        return self.createModifiedCopy(
+            removed_edges=removed_edges,
+            removed_nodes=removed_nodes
+        )
+    
+    def removeEdge(self, from_node, to_node):
+        """
+        Create a new graph with a specific edge removed
+        
+        Args:
+            from_node: Source airport code
+            to_node: Destination airport code
+            
+        Returns:
+            New WeightedGraph with the specified edge removed
+        """
+        return self.createModifiedCopy(removed_edges=[(from_node, to_node)])
+    
+    def removeNode(self, node):
+        """
+        Create a new graph with a specific node isolated
+        
+        Args:
+            node: Airport code to isolate
+            
+        Returns:
+            New WeightedGraph with the node isolated
+        """
+        return self.createModifiedCopy(removed_nodes=[node])
+    
     def getAirportInfo(self, iataCode: str) -> dict:
         """Get information about a specific airport"""
         return self.airportData.get(iataCode, {})
@@ -82,6 +192,14 @@ class WeightedGraph:
     def getConnections(self, iataCode: str) -> dict:
         """Get all connections from an airport"""
         return self.graph.get(iataCode, {})
+    
+    def getEdge(self, from_node: str, to_node: str) -> dict:
+        """Get edge information between two airports"""
+        return self.graph.get(from_node, {}).get(to_node, {})
+    
+    def hasEdge(self, from_node: str, to_node: str) -> bool:
+        """Check if an edge exists between two airports"""
+        return to_node in self.graph.get(from_node, {})
     
     def getGraphStats(self) -> dict:
         """Get statistics about the graph"""

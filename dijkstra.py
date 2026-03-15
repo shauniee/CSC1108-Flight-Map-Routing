@@ -7,55 +7,53 @@ class Dijkstra:
     def __init__(self, graph: WeightedGraph):
         self.airportGraph = graph
         self.graphDictionary = graph.graph
+        self.maxTransit = 2  # Internal constant for maximum transit flights
         
     def findShortestPath(self, start: str, end: str, weight_type: str = 'distance'):
-        """
-        Find shortest path based on specified weight type
-        
-        Args:
-            start: Starting airport code
-            end: Destination airport code
-            weight_type: 'distance', 'time', or 'price'
-        """
         # Validate airports exist
         if start not in self.graphDictionary:
             print(f"Start airport '{start}' not found")
-            return None, None, None
+            return None, None, None, None
             
         if end not in self.graphDictionary:
             print(f"Destination airport '{end}' not found")
-            return None, None, None
+            return None, None, None, None
             
         # Validate weight type
         if weight_type not in ['distance', 'time', 'price']:
             weight_type = 'distance'
             
         # Initialize data structures
-        weights = {}  # Store the primary weight (distance, time, or price)
-        times = {}    # Always store time separately for consistency
+        weights = {}  # Store the primary weight
+        times = {}    # Always store time separately
         previous = {}
+        transit_count = {}  # Track number of transits for each node
         
         # Initialize all airports
         for airport in self.graphDictionary:
             weights[airport] = float('inf')
             times[airport] = float('inf')
+            transit_count[airport] = float('inf')
             previous[airport] = None
         
         # Set start node values
         weights[start] = 0
         times[start] = 0
+        transit_count[start] = 0  # Start with 0 transits
         
-        # Priority queue: (weight, node)
-        priorityQueue = [(0, start)]
-        visited = set()
+        # Priority queue: (weight, transit_count, node)
+        # Include transit_count to prefer paths with fewer transits when weights are equal
+        priorityQueue = [(0, 0, start)]
+        
+        # Use a dictionary to track best (weight, transits) for each node
+        best_states = {start: (0, 0)}
         
         while priorityQueue:
-            currentWeight, currentNode = heapq.heappop(priorityQueue)
+            currentWeight, currentTransits, currentNode = heapq.heappop(priorityQueue)
             
-            if currentNode in visited:
+            state = (currentWeight, currentTransits)
+            if currentNode in best_states and best_states[currentNode] < state:
                 continue
-                
-            visited.add(currentNode)
             
             # Early exit if we reached destination
             if currentNode == end:
@@ -67,7 +65,14 @@ class Dijkstra:
                 
             # Explore neighbors
             for neighbor, edgeData in self.graphDictionary[currentNode].items():
-                if neighbor in visited:
+                # Calculate new transit count
+                # A transit occurs when we move from currentNode to neighbor and it's not the first move
+                newTransits = currentTransits
+                if currentNode != start:  # If we're not at start, this is a transit
+                    newTransits += 1
+                
+                # Check transit limit
+                if newTransits > self.maxTransit:
                     continue
                 
                 # Get the appropriate weight based on weight_type
@@ -81,28 +86,80 @@ class Dijkstra:
                 # Calculate new weight
                 newWeight = weights[currentNode] + edgeWeight
                 
-                # Get time from edge data (always track time)
+                # Get time from edge data
                 legTime = edgeData.get('time', 0)
                 newTime = times[currentNode] + legTime
                 
-                # If we found a better path based on the selected weight type
-                if newWeight < weights[neighbor]:
+                # Check if this path is better
+                current_best = best_states.get(neighbor, (float('inf'), float('inf')))
+                
+                # Update if we found a better path (better weight OR same weight with fewer transits)
+                if (newWeight < current_best[0] or 
+                    (newWeight == current_best[0] and newTransits < current_best[1])):
+                    
                     weights[neighbor] = newWeight
                     times[neighbor] = newTime
+                    transit_count[neighbor] = newTransits
                     previous[neighbor] = currentNode
-                    heapq.heappush(priorityQueue, (newWeight, neighbor))
+                    best_states[neighbor] = (newWeight, newTransits)
+                    heapq.heappush(priorityQueue, (newWeight, newTransits, neighbor))
         
         # Reconstruct path
         path = self._reconstructPath(previous, start, end)
         
         if path:
-            # Return path and the actual metrics
-            total_distance = self.calculatePathMetric(path, 'distance')
-            total_time = self.calculatePathMetric(path, 'time')
-            total_price = self.calculatePathMetric(path, 'price')
-            return path, total_distance, total_time, total_price
-        else:
+            # Verify transit count
+            actual_transits = len(path) - 2
+            if actual_transits <= self.maxTransit:
+                total_distance = self.calculatePathMetric(path, 'distance')
+                total_time = self.calculatePathMetric(path, 'time')
+                total_price = self.calculatePathMetric(path, 'price')
+                return path, total_distance, total_time, total_price
+        
+        return None, None, None, None
+    
+    def findAllPathsWithMaxTransits(self, start: str, end: str, weight_type: str = 'distance'):
+        """
+        Find all possible paths within transit limit (for Yen's algorithm initialization)
+        This is a modified BFS approach to get the first valid path
+        """
+        if start not in self.graphDictionary or end not in self.graphDictionary:
             return None, None, None, None
+        
+        # Use BFS to find a path within transit limit
+        queue = [(start, [start], 0, 0, 0)]  # (node, path, transits, distance, time)
+        visited_paths = set()  # To avoid revisiting same paths
+        
+        while queue:
+            node, path, transits, distance, time = queue.pop(0)
+            
+            # Create a path signature to avoid cycles
+            path_key = tuple(path)
+            if path_key in visited_paths:
+                continue
+            visited_paths.add(path_key)
+            
+            if node == end and len(path) >= 2:
+                # Calculate price for this path
+                price = self.calculatePathMetric(path, 'price')
+                return path, distance, time, price
+            
+            if transits >= self.maxTransit and node != end:
+                continue  # Can't add more transits
+                
+            for neighbor, edgeData in self.graphDictionary.get(node, {}).items():
+                if neighbor not in path:  # Avoid cycles
+                    new_transits = transits
+                    if node != start:
+                        new_transits += 1
+                    
+                    if new_transits <= self.maxTransit:
+                        new_path = path + [neighbor]
+                        new_distance = distance + edgeData['distance']
+                        new_time = time + edgeData.get('time', 0)
+                        queue.append((neighbor, new_path, new_transits, new_distance, new_time))
+        
+        return None, None, None, None
     
     def _reconstructPath(self, previous: dict, start: str, end: str):
         """Reconstruct the path from start to end"""
