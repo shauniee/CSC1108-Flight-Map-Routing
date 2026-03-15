@@ -1,3 +1,4 @@
+# route_service.py
 import json
 import math
 from datetime import datetime, timedelta, timezone
@@ -6,6 +7,7 @@ from pathlib import Path
 from dijkstra import Dijkstra
 from loadDataset import WeightedGraph
 from yen import Yen
+from pricing import priceCalculation  # Import the pricing class
 
 
 class RouteService:
@@ -16,6 +18,7 @@ class RouteService:
         self.weightedGraph = WeightedGraph()
         self.dijkstraSolver = None
         self.yenSolver = None
+        self.priceCalculator = priceCalculation()  # Initialize price calculator
         self._loadRoutingContext()
 
     def _loadRoutingContext(self):
@@ -54,10 +57,77 @@ class RouteService:
         self.yenSolver = Yen(self.weightedGraph, dijkstra=self.dijkstraSolver)
 
     def estimateTotalPrice(self, totalKm, legs):
+        """Legacy method - kept for backward compatibility"""
         baseFare = 35
         perKm = 0.11
         legFee = 25
         return round(baseFare + (totalKm * perKm) + (legs * legFee), 2)
+
+    def calculateAccuratePrice(self, routeCodes, segments_details, mode="distance"):
+        """
+        Calculate accurate price using the priceCalculation class
+        
+        Args:
+            routeCodes: List of airport codes in the route
+            segments_details: List of segment details with carriers, distance, etc.
+            mode: Current search mode (affects pricing)
+            
+        Returns:
+            Dictionary with price and breakdown
+        """
+        if len(routeCodes) < 2:
+            return {'price': 0, 'breakdown': {'base': 0, 'fuel': 0, 'total': 0}}
+        
+        total_price = 0
+        segments_prices = []
+        
+        for i in range(len(routeCodes) - 1):
+            from_airport = routeCodes[i]
+            to_airport = routeCodes[i + 1]
+            
+            # Get segment details
+            segment = segments_details[i] if i < len(segments_details) else {}
+            distance = segment.get('distance_km', 0)
+            carriers = segment.get('carrier_names', [])
+            
+            # Determine if direct flight or connecting
+            is_direct = (len(routeCodes) == 2)
+            connecting_airport = None if is_direct else routeCodes[i]
+            
+            # Calculate price for this segment using the pricing class
+            segment_price_info = self.priceCalculator.calculatePrice(
+                fromAirport=from_airport,
+                toAirport=to_airport,
+                distance=distance,
+                carrier=carriers,
+                directFlight=is_direct,
+                connectingAirport=connecting_airport
+            )
+            
+            segments_prices.append({
+                'from': from_airport,
+                'to': to_airport,
+                'price': segment_price_info['price'],
+                'breakdown': segment_price_info['breakdown']
+            })
+            
+            total_price += segment_price_info['price']
+        
+        # Apply route-level adjustments based on mode
+        if mode == "price":
+            total_price *= 0.98  # Small discount for price-optimized routes
+        elif mode == "stops":
+            total_price *= 1.05  # Premium for fewer stops
+        
+        return {
+            'total_price': round(total_price, 2),
+            'segments': segments_prices,
+            'breakdown': {
+                'base': sum(s['breakdown']['base'] for s in segments_prices),
+                'fuel': sum(s['breakdown']['fuel'] for s in segments_prices),
+                'total': round(total_price, 2)
+            }
+        }
 
     def estimateLegMinutes(self, distanceKm):
         cruiseSpeedKmh = 850.0
@@ -91,6 +161,7 @@ class RouteService:
 
         legs = []
         mapPoints = []
+        segments_details = []  # Store segment details for price calculation
 
         for idx in range(len(routeCodes) - 1):
             fromCode = routeCodes[idx]
@@ -133,6 +204,14 @@ class RouteService:
                     "carrier_names": carriers,
                 }
             )
+            
+            # Store for price calculation
+            segments_details.append({
+                'distance_km': distance,
+                'carrier_names': carriers,
+                'from_airport': fromCode,
+                'to_airport': toCode
+            })
 
         for seq, code in enumerate(routeCodes, start=1):
             meta = self.airportMeta.get(code, {})
@@ -150,7 +229,7 @@ class RouteService:
                 }
             )
 
-        return self._finalizeResult(routeCodes, legs, mapPoints, mode)
+        return self._finalizeResult(routeCodes, legs, mapPoints, mode, segments_details)
 
     def _pickBestRoute(self, results, mode):
         if not results:
@@ -167,7 +246,7 @@ class RouteService:
             )
         return min(results, key=lambda route: route.get("distance_exact", float("inf")))
 
-    def _finalizeResult(self, route, legs, mapPoints, mode):
+    def _finalizeResult(self, route, legs, mapPoints, mode, segments_details=None):
         totalDistance = sum(leg["distance_km"] for leg in legs)
         flightMinutes = sum(leg["duration_min"] for leg in legs)
         stops = max(0, len(route) - 2)
@@ -177,13 +256,25 @@ class RouteService:
         arrivalUtc = departureUtc + timedelta(minutes=totalTravelMinutes)
         avgSpeed = (totalDistance / (flightMinutes / 60.0)) if flightMinutes else 0.0
 
-        price = self.estimateTotalPrice(totalDistance, len(legs))
+        # Use accurate price calculation if segments_details provided
+        if segments_details:
+            price_info = self.calculateAccuratePrice(route, segments_details, mode)
+            price = price_info['total_price']
+            price_breakdown = price_info['breakdown']
+            segments_prices = price_info['segments']
+        else:
+            # Fallback to estimate
+            price = self.estimateTotalPrice(totalDistance, len(legs))
+            price_breakdown = None
+            segments_prices = []
+
+        # Apply mode-based adjustments
         if mode == "price":
             price = round(price * 0.84, 2)
         elif mode == "stops":
             price = round(price * 1.07, 2)
 
-        return {
+        result = {
             "route": route,
             "distance": int(round(totalDistance)),
             "distance_exact": round(totalDistance, 1),
@@ -203,25 +294,54 @@ class RouteService:
             "mode": mode,
             "mock": False,
         }
+        
+        # Add price breakdown if available
+        if price_breakdown:
+            result['price_breakdown'] = price_breakdown
+        if segments_prices:
+            result['segments_prices'] = segments_prices
 
+        return result
+
+    # route_service.py (updated computeAlgorithmResults method)
     def computeAlgorithmResults(self, sourceCode, destinationCode, mode):
         if sourceCode not in self.weightedGraph.graph or destinationCode not in self.weightedGraph.graph:
             return {"best": None, "routes": []}
 
-        selectedMode = mode if mode in ("distance", "price", "stops") else "distance"
-        shortestPathCodes, _, _ = self.dijkstraSolver.findShortestPath(sourceCode, destinationCode)
+        # Map UI mode to weight type
+        weight_type = 'distance'  # default
+        if mode == 'price':
+            weight_type = 'price'
+        elif mode == 'stops':
+            # For stops, we still use distance but we'll sort by stops later
+            weight_type = 'distance'
+        else:
+            weight_type = 'distance'
+
+        # Find shortest path based on selected weight type
+        shortestPathCodes, total_dist, total_time, total_price = self.dijkstraSolver.findShortestPath(
+            sourceCode, destinationCode, weight_type
+        )
+        
         if not shortestPathCodes:
             return {"best": None, "routes": []}
 
-        # Best route is always computed from Dijkstra shortest path only.
-        best = self._buildResultFromRoute(shortestPathCodes, selectedMode)
+        # Best route is computed based on selected mode
+        best = self._buildResultFromRoute(shortestPathCodes, mode)
         if best:
-            best["mode"] = selectedMode
+            best["mode"] = mode
+            # Add the accurate metrics
+            best["distance_exact"] = total_dist
+            best["price"] = total_price if mode == 'price' else best.get("price", total_price)
+            best["flight_minutes"] = total_time
 
-        # Yen is used only for alternative routes shown after the map section.
+        # Yen is used for alternative routes
         alternatives = []
         seenPaths = {tuple(shortestPathCodes)}
-        kPaths = self.yenSolver.findKShortestPath(sourceCode, destinationCode, k=8) or []
+        
+        # Get k-shortest paths based on the same weight type
+        kPaths = self.yenSolver.findKShortestPath(sourceCode, destinationCode, k=8, weight_type=weight_type) or []
+        
         for pathInfo in kPaths:
             path = pathInfo.get("path")
             if not path:
@@ -231,9 +351,21 @@ class RouteService:
                 continue
             seenPaths.add(pathKey)
 
-            alternative = self._buildResultFromRoute(path, "distance")
+            alternative = self._buildResultFromRoute(path, mode)
             if alternative:
                 alternative["mode"] = "alternative"
+                # Update with accurate metrics from pathInfo
+                alternative["distance_exact"] = pathInfo.get("dist", 0)
+                alternative["price"] = pathInfo.get("price", 0)
+                alternative["flight_minutes"] = pathInfo.get("time", 0)
                 alternatives.append(alternative)
+
+        # Sort alternatives based on mode
+        if mode == "price":
+            alternatives.sort(key=lambda x: x.get("price", float("inf")))
+        elif mode == "stops":
+            alternatives.sort(key=lambda x: (x.get("stops", float("inf")), x.get("distance_exact", float("inf"))))
+        else:  # distance
+            alternatives.sort(key=lambda x: x.get("distance_exact", float("inf")))
 
         return {"best": best, "routes": alternatives}

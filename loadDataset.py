@@ -4,7 +4,7 @@ from pathlib import Path
 
 class WeightedGraph:
     def __init__(self):
-        # Graph representation: {airport_iata: {neighbor_iata: {distance, time, carriers}}}
+        # Graph representation: {airport_iata: {neighbor_iata: {distance, time, carriers, price}}}
         self.graph = {}
         self.airportData = {}  # Store the full airport data
         
@@ -43,10 +43,31 @@ class WeightedGraph:
                             if isinstance(carrier, dict) and 'name' in carrier:
                                 carriers.append(carrier['name'])
                     
-                    # Store edge with both distance and time
+                    # Calculate estimated price for this edge
+                    # This is a simplified price calculation - you can make it more sophisticated
+                    base_rate = 0.15
+                    fuel_rate = 0.02
+                    estimated_price = distance * (base_rate + fuel_rate)
+                    
+                    # Adjust price based on carriers if available
+                    if carriers:
+                        budgetAirlines = ['Scoot', 'Ryanair', 'AirAsia', 'Firefly']
+                        premiumAirlines = ['Singapore Airlines', 'Emirates', 'Lufthansa', 
+                                         'British Airways', 'Qatar Airways', 'Qantas']
+                        
+                        for carrier in carriers:
+                            if carrier in budgetAirlines:
+                                estimated_price *= 0.8
+                                break
+                            elif carrier in premiumAirlines:
+                                estimated_price *= 1.2
+                                break
+                    
+                    # Store edge with all metrics
                     self.graph[iata][destIata] = {
                         'distance': distance,
                         'time': time,
+                        'price': round(estimated_price, 2),
                         'carriers': carriers
                     }
     

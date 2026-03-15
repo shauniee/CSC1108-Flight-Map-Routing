@@ -1,3 +1,4 @@
+# yen.py
 import heapq
 import itertools
 
@@ -14,21 +15,42 @@ class Yen:
         else:
             self.dijkstra = dijkstra
 
-    def findKShortestPath(self, start, end, k):
+    def findKShortestPath(self, start, end, k, weight_type='distance'):
+        """
+        Find k shortest paths based on specified weight type
+        
+        Args:
+            start: Starting airport code
+            end: Destination airport code
+            k: Number of paths to find
+            weight_type: 'distance', 'time', or 'price'
+        """
         if start not in self.graphDictionary:
             return None
         if end not in self.graphDictionary:
             return None
         
-        path, dist, time = self.dijkstra.findShortestPath(start, end)
+        # Use Dijkstra with specified weight type
+        path, dist, time, price = self.dijkstra.findShortestPath(start, end, weight_type)
         
         if not path:
             return []
+        
+        # Store the appropriate metric based on weight_type
+        primary_metric = 0
+        if weight_type == 'time':
+            primary_metric = time
+        elif weight_type == 'price':
+            primary_metric = price
+        else:  # distance
+            primary_metric = dist
         
         A = [{ 
             'path': path,
             'dist': dist,
             'time': time,
+            'price': price,
+            'primary_metric': primary_metric,
             'connections': len(path) - 1,
             'details': self.dijkstra.getRouteDetails(path) }]
 
@@ -48,23 +70,34 @@ class Yen:
             
                 temp = self.newDijkstra(updatedGraph)
 
-                spurPath, spurDist, spurTime = temp.findShortestPath(spurNode, end)
+                spurPath, spurDist, spurTime, spurPrice = temp.findShortestPath(spurNode, end, weight_type)
 
                 if spurPath:
                     rootPath = prev[:spurIndex]
                     totalPath = rootPath + spurPath
 
-                    totalDist, totalTime = self.calculatePath(totalPath)
+                    totalDist, totalTime, totalPrice = self.calculatePathMetrics(totalPath)
+
+                    # Calculate primary metric based on weight_type
+                    primary_metric = 0
+                    if weight_type == 'time':
+                        primary_metric = totalTime
+                    elif weight_type == 'price':
+                        primary_metric = totalPrice
+                    else:  # distance
+                        primary_metric = totalDist
 
                     candidate = {
                         'path': totalPath,
                         'dist': totalDist,
                         'time': totalTime,
+                        'price': totalPrice,
+                        'primary_metric': primary_metric,
                         'connections': len(totalPath) - 1
                     }
 
                     if self.validCandidate(candidate, A, B):
-                        heapq.heappush(B, (candidate['dist'], next(queueCounter), candidate))
+                        heapq.heappush(B, (candidate['primary_metric'], next(queueCounter), candidate))
                         pathsFound += 1
 
             if not B:
@@ -103,9 +136,11 @@ class Yen:
         temp.graphDictionary = updatedGraph
         return temp
     
-    def calculatePath(self, path):
+    def calculatePathMetrics(self, path):
+        """Calculate total distance, time, and price for a path"""
         totalDist = 0
         totalTime = 0
+        totalPrice = 0
         for i in range(len(path) - 1):
             fromCode = path[i]
             toCode = path[i+1]
@@ -114,8 +149,9 @@ class Yen:
                 edge = self.graphDictionary[fromCode][toCode]
                 totalDist += edge['distance']
                 totalTime += edge.get('time', 0)
+                totalPrice += edge.get('price', 0)
 
-        return totalDist, totalTime
+        return totalDist, totalTime, totalPrice
     
     def validCandidate(self, candidate, A, B):
         candidateTuple = tuple(candidate['path'])
@@ -135,6 +171,7 @@ class Yen:
         for i, pathData in enumerate(paths, 1):
             dist = pathData.get('dist', 0)
             time = pathData.get('time', 0)
+            price = pathData.get('price', 0)
             connections = pathData.get('connections', len(pathData['path']) - 1)
 
             pathDict = {
@@ -143,6 +180,7 @@ class Yen:
                 'path_display': ' -> '.join(pathData['path']),
                 'dist': dist,
                 'time': time,
+                'price': price,
                 'connections': connections,
                 'segments': []
             }
@@ -157,6 +195,7 @@ class Yen:
                         'to_name': segment['to_name'].split(',')[0],
                         'dist': segment['distance'],
                         'time': segment['time'],
+                        'price': segment.get('price', 0),
                         'carriers': segment.get('carriers', [])
                     })
             
