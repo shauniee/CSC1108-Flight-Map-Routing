@@ -11,12 +11,6 @@ class WeightedGraph:
         self.airportData = {}  # Store the full airport data
         
     def buildGraphFromData(self, airportsData: dict):
-        """
-        Build graph from your airport dataset structure
-        
-        Args:
-            airportsData: Dictionary of airport data with IATA codes as keys
-        """
         self.airportData = airportsData
         
         for iata, airport in airportsData.items():
@@ -45,8 +39,6 @@ class WeightedGraph:
                             if isinstance(carrier, dict) and 'name' in carrier:
                                 carriers.append(carrier['name'])
                     
-                    # Calculate estimated price for this edge
-                    # This is a simplified price calculation - you can make it more sophisticated
                     base_rate = 0.15
                     fuel_rate = 0.02
                     estimated_price = distance * (base_rate + fuel_rate)
@@ -74,16 +66,6 @@ class WeightedGraph:
                     }
     
     def createModifiedCopy(self, removed_edges=None, removed_nodes=None):
-        """
-        Create a modified copy of this graph
-        
-        Args:
-            removed_edges: List of tuples (from_node, to_node) to remove
-            removed_nodes: List of nodes to isolate (remove all connections)
-            
-        Returns:
-            A new WeightedGraph instance with modifications
-        """
         removed_edges = removed_edges or []
         removed_nodes = removed_nodes or []
         
@@ -116,17 +98,6 @@ class WeightedGraph:
         return modified_graph
     
     def createGraphForYenSpur(self, accepted_paths, prev_path, spur_index):
-        """
-        Convenience method to create a graph for Yen's algorithm spur path calculation
-        
-        Args:
-            accepted_paths: List of already accepted paths (from Yen's A list)
-            prev_path: The previous path being processed
-            spur_index: The spur node index
-            
-        Returns:
-            Modified WeightedGraph for spur path calculation
-        """
         removed_edges = []
         
         # Validate inputs
@@ -157,52 +128,27 @@ class WeightedGraph:
         )
     
     def removeEdge(self, from_node, to_node):
-        """
-        Create a new graph with a specific edge removed
-        
-        Args:
-            from_node: Source airport code
-            to_node: Destination airport code
-            
-        Returns:
-            New WeightedGraph with the specified edge removed
-        """
         return self.createModifiedCopy(removed_edges=[(from_node, to_node)])
     
     def removeNode(self, node):
-        """
-        Create a new graph with a specific node isolated
-        
-        Args:
-            node: Airport code to isolate
-            
-        Returns:
-            New WeightedGraph with the node isolated
-        """
         return self.createModifiedCopy(removed_nodes=[node])
     
     def getAirportInfo(self, iataCode: str) -> dict:
-        """Get information about a specific airport"""
         return self.airportData.get(iataCode, {})
     
     def getAllAirports(self) -> list:
-        """Get list of all airport codes"""
         return list(self.graph.keys())
     
     def getConnections(self, iataCode: str) -> dict:
-        """Get all connections from an airport"""
         return self.graph.get(iataCode, {})
     
     def getEdge(self, from_node: str, to_node: str) -> dict:
-        """Get edge information between two airports"""
         return self.graph.get(from_node, {}).get(to_node, {})
     
     def hasEdge(self, from_node: str, to_node: str) -> bool:
-        """Check if an edge exists between two airports"""
         return to_node in self.graph.get(from_node, {})
     
     def getGraphStats(self) -> dict:
-        """Get statistics about the graph"""
         totalAirports = len(self.graph)
         totalRoutes = sum(len(destinations) for destinations in self.graph.values())
         

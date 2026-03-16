@@ -7,19 +7,22 @@ from pathlib import Path
 from dijkstra import Dijkstra
 from loadDataset import WeightedGraph
 from yen import Yen
-from pricing import priceCalculation  # Import the pricing class
+from AirlineData.pricing import PriceCalculation  # Import the pricing class
 
 
 class RouteService:
-    def __init__(self, routesFile: Path):
+    def __init__(self, routesFile: Path, airlineClassificationFile: Path = None):
         self.routesFile = routesFile
+        self.airlineClassificationFile = airlineClassificationFile or Path("airline_classifications.json")
         self.airports = {}
         self.airportMeta = {}
         self.weightedGraph = WeightedGraph()
         self.dijkstraSolver = None
         self.yenSolver = None
-        self.priceCalculator = priceCalculation()  # Initialize price calculator
+        self.priceCalculator = None  # Will initialize after loading classifications
+        self.airlineClassifications = {}  # Store airline classifications
         self._loadRoutingContext()
+        self._loadAirlineClassifications()
 
     def _loadRoutingContext(self):
         with self.routesFile.open("r", encoding="utf-8") as f:
@@ -56,6 +59,38 @@ class RouteService:
         self.dijkstraSolver = Dijkstra(self.weightedGraph)
         self.yenSolver = Yen(self.weightedGraph, dijkstra=self.dijkstraSolver)
 
+    def _loadAirlineClassifications(self):
+        """Load airline classifications from JSON file"""
+        try:
+            with self.airlineClassificationFile.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            self.airlineClassifications = data
+            
+            # Initialize price calculator with the classification file
+            self.priceCalculator = PriceCalculation(str(self.airlineClassificationFile))
+            
+        except Exception as e:
+            self.priceCalculator = PriceCalculation()
+            self.airlineClassifications = {}
+
+    def getAirlineType(self, carrierIata):
+        """Get airline type (Budget/Premium/Standard) from IATA code"""
+        if not self.airlineClassifications:
+            return "Standard"
+        
+        # Check budget airlines
+        for airline in self.airlineClassifications.get('budget_airlines', []):
+            if airline['iata'] == carrierIata:
+                return "Budget"
+        
+        # Check premium airlines
+        for airline in self.airlineClassifications.get('premium_airlines', []):
+            if airline['iata'] == carrierIata:
+                return "Premium"
+        
+        return "Standard"
+
     def estimateTotalPrice(self, totalKm, legs):
         """Legacy method - kept for backward compatibility"""
         baseFare = 35
@@ -64,17 +99,6 @@ class RouteService:
         return round(baseFare + (totalKm * perKm) + (legs * legFee), 2)
 
     def calculateAccuratePrice(self, routeCodes, segments_details, mode="distance"):
-        """
-        Calculate accurate price using the priceCalculation class
-        
-        Args:
-            routeCodes: List of airport codes in the route
-            segments_details: List of segment details with carriers, distance, etc.
-            mode: Current search mode (affects pricing)
-            
-        Returns:
-            Dictionary with price and breakdown
-        """
         if len(routeCodes) < 2:
             return {'price': 0, 'breakdown': {'base': 0, 'fuel': 0, 'total': 0}}
         
@@ -99,16 +123,24 @@ class RouteService:
                 fromAirport=from_airport,
                 toAirport=to_airport,
                 distance=distance,
-                carrier=carriers,
+                carriers=carriers,
                 directFlight=is_direct,
                 connectingAirport=connecting_airport
             )
+            
+            # Get airline type for this segment
+            airline_type = "Standard"
+            if carriers:
+                # Check first carrier's type (or you could have logic for multiple carriers)
+                airline_type = self.getAirlineType(carriers[0]) if carriers else "Standard"
             
             segments_prices.append({
                 'from': from_airport,
                 'to': to_airport,
                 'price': segment_price_info['price'],
-                'breakdown': segment_price_info['breakdown']
+                'breakdown': segment_price_info['breakdown'],
+                'airline_type': airline_type,
+                'carriers': carriers
             })
             
             total_price += segment_price_info['price']
@@ -188,9 +220,29 @@ class RouteService:
             carriers = edge.get("carriers", [])
             if not isinstance(carriers, list):
                 carriers = []
+            
+            # Extract carrier IATA codes and names
+            carrier_iata = []
+            carrier_names = []
+            for carrier in carriers:
+                if isinstance(carrier, dict):
+                    iata = carrier.get('iata')
+                    name = carrier.get('name')
+                    if iata:
+                        carrier_iata.append(iata)
+                        carrier_names.append(name or iata)
+                else:
+                    carrier_iata.append(carrier)
+                    carrier_names.append(carrier)
 
             fromMeta = self.airportMeta.get(fromCode, {})
             toMeta = self.airportMeta.get(toCode, {})
+            
+            # Determine airline type for this leg
+            airline_type = "Standard"
+            if carrier_iata:
+                airline_type = self.getAirlineType(carrier_iata[0])  # Use first carrier for type
+            
             legs.append(
                 {
                     "leg_number": idx + 1,
@@ -201,14 +253,16 @@ class RouteService:
                     "distance_km": round(float(distance), 1),
                     "duration_min": int(round(float(minutes))),
                     "duration_label": self.minutesToTime(minutes),
-                    "carrier_names": carriers,
+                    "carrier_names": carrier_names,
+                    "carrier_iata": carrier_iata,
+                    "airline_type": airline_type,  # Add airline type to leg
                 }
             )
             
-            # Store for price calculation
+            # Store for price calculation (use IATA codes for price calculation)
             segments_details.append({
                 'distance_km': distance,
-                'carrier_names': carriers,
+                'carrier_names': carrier_iata,  # Use IATA codes for price calculation
                 'from_airport': fromCode,
                 'to_airport': toCode
             })
@@ -257,7 +311,7 @@ class RouteService:
         avgSpeed = (totalDistance / (flightMinutes / 60.0)) if flightMinutes else 0.0
 
         # Use accurate price calculation if segments_details provided
-        if segments_details:
+        if segments_details and self.priceCalculator:
             price_info = self.calculateAccuratePrice(route, segments_details, mode)
             price = price_info['total_price']
             price_breakdown = price_info['breakdown']
@@ -273,6 +327,13 @@ class RouteService:
             price = round(price * 0.84, 2)
         elif mode == "stops":
             price = round(price * 1.07, 2)
+
+        # Count airline types in the route
+        airline_type_counts = {
+            'Premium': sum(1 for leg in legs if leg.get('airline_type') == 'Premium'),
+            'Budget': sum(1 for leg in legs if leg.get('airline_type') == 'Budget'),
+            'Standard': sum(1 for leg in legs if leg.get('airline_type') == 'Standard')
+        }
 
         result = {
             "route": route,
@@ -293,6 +354,7 @@ class RouteService:
             "avg_speed_kmh": int(round(avgSpeed)),
             "mode": mode,
             "mock": False,
+            "airline_stats": airline_type_counts,  # Add airline statistics
         }
         
         # Add price breakdown if available
@@ -303,7 +365,6 @@ class RouteService:
 
         return result
 
-    # route_service.py (updated computeAlgorithmResults method)
     def computeAlgorithmResults(self, sourceCode, destinationCode, mode):
         if sourceCode not in self.weightedGraph.graph or destinationCode not in self.weightedGraph.graph:
             print(f"Airport not found: {sourceCode} or {destinationCode}")
@@ -321,7 +382,7 @@ class RouteService:
         print(f"Finding path from {sourceCode} to {destinationCode} using {weight_type} optimization")
         
         # Find shortest path based on selected weight type with max 2 transits
-        shortestPathCodes, total_dist, total_time, total_price = self.dijkstraSolver.findShortestPath(
+        shortestPathCodes, total_dist, total_time = self.dijkstraSolver.findShortestPath(
             sourceCode, destinationCode, weight_type
         )
         
@@ -330,7 +391,7 @@ class RouteService:
             return {"best": None, "routes": []}
 
         print(f"Found path: {' -> '.join(shortestPathCodes)}")
-        print(f"Distance: {total_dist}, Time: {total_time}, Price: {total_price}")
+        print(f"Distance: {total_dist}, Time: {total_time}")
 
         # Best route is computed based on selected mode
         best = self._buildResultFromRoute(shortestPathCodes, mode)
@@ -338,7 +399,6 @@ class RouteService:
             best["mode"] = mode
             # Add the accurate metrics
             best["distance_exact"] = total_dist
-            best["price"] = total_price if mode == 'price' else best.get("price", total_price)
             best["flight_minutes"] = total_time
             best["stops"] = len(shortestPathCodes) - 2  # Ensure stops count is accurate
 
@@ -385,7 +445,6 @@ class RouteService:
                 alternative["mode"] = "alternative"
                 # Update with accurate metrics from pathInfo
                 alternative["distance_exact"] = pathInfo.get("dist", 0)
-                alternative["price"] = pathInfo.get("price", 0)
                 alternative["flight_minutes"] = pathInfo.get("time", 0)
                 alternative["stops"] = len(path) - 2
                 alternatives.append(alternative)

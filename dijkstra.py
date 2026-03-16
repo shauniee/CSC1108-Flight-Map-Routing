@@ -1,6 +1,5 @@
 # dijkstra.py
 import heapq
-from copy import deepcopy
 from loadDataset import WeightedGraph
 
 class Dijkstra:
@@ -20,7 +19,7 @@ class Dijkstra:
             return None, None, None, None
             
         # Validate weight type
-        if weight_type not in ['distance', 'time', 'price']:
+        if weight_type not in ['distance', 'time']:
             weight_type = 'distance'
             
         # Initialize data structures
@@ -78,8 +77,6 @@ class Dijkstra:
                 # Get the appropriate weight based on weight_type
                 if weight_type == 'time':
                     edgeWeight = edgeData.get('time', 0)
-                elif weight_type == 'price':
-                    edgeWeight = edgeData.get('price', 0)
                 else:  # distance
                     edgeWeight = edgeData['distance']
                 
@@ -105,7 +102,7 @@ class Dijkstra:
                     heapq.heappush(priorityQueue, (newWeight, newTransits, neighbor))
         
         # Reconstruct path
-        path = self._reconstructPath(previous, start, end)
+        path = self.reconstructPath(previous, start, end)
         
         if path:
             # Verify transit count
@@ -113,18 +110,16 @@ class Dijkstra:
             if actual_transits <= self.maxTransit:
                 total_distance = self.calculatePathMetric(path, 'distance')
                 total_time = self.calculatePathMetric(path, 'time')
-                total_price = self.calculatePathMetric(path, 'price')
-                return path, total_distance, total_time, total_price
+                return path, total_distance, total_time
         
-        return None, None, None, None
+        return None, None, None
     
-    def findAllPathsWithMaxTransits(self, start: str, end: str, weight_type: str = 'distance'):
+    def findAllPathsWithMaxTransits(self, start: str, end: str):
         """
         Find all possible paths within transit limit (for Yen's algorithm initialization)
-        This is a modified BFS approach to get the first valid path
         """
         if start not in self.graphDictionary or end not in self.graphDictionary:
-            return None, None, None, None
+            return None, None, None
         
         # Use BFS to find a path within transit limit
         queue = [(start, [start], 0, 0, 0)]  # (node, path, transits, distance, time)
@@ -140,9 +135,7 @@ class Dijkstra:
             visited_paths.add(path_key)
             
             if node == end and len(path) >= 2:
-                # Calculate price for this path
-                price = self.calculatePathMetric(path, 'price')
-                return path, distance, time, price
+                return path, distance, time
             
             if transits >= self.maxTransit and node != end:
                 continue  # Can't add more transits
@@ -159,9 +152,9 @@ class Dijkstra:
                         new_time = time + edgeData.get('time', 0)
                         queue.append((neighbor, new_path, new_transits, new_distance, new_time))
         
-        return None, None, None, None
+        return None, None, None
     
-    def _reconstructPath(self, previous: dict, start: str, end: str):
+    def reconstructPath(self, previous: dict, start: str, end: str):
         """Reconstruct the path from start to end"""
         path = []
         current = end
@@ -181,7 +174,7 @@ class Dijkstra:
             return None
     
     def calculatePathMetric(self, path: list, metric: str):
-        """Calculate total distance, time, or price for a path"""
+        """Calculate total distance or time for a path"""
         if not path or len(path) < 2:
             return 0
             
@@ -196,8 +189,6 @@ class Dijkstra:
                     total += edge['distance']
                 elif metric == 'time':
                     total += edge.get('time', 0)
-                elif metric == 'price':
-                    total += edge.get('price', 0)
         
         return total
     
@@ -220,7 +211,6 @@ class Dijkstra:
             'segments': [],
             'total_distance': 0,
             'total_time': 0,
-            'total_price': 0,
             'carriers': set()
         }
         
@@ -241,20 +231,21 @@ class Dijkstra:
                     'to': toCode,
                     'to_name': toName,
                     'distance': edge['distance'],
-                    'time': edge.get('time', 0),
-                    'price': edge.get('price', 0)
+                    'time': edge.get('time', 0)
                 }
                 
                 # Add carriers if available
                 if 'carriers' in edge and edge['carriers']:
                     segment['carriers'] = edge['carriers']
                     for carrier in edge['carriers']:
-                        details['carriers'].add(carrier)
+                        if isinstance(carrier, dict):
+                            details['carriers'].add(carrier.get('name', carrier.get('iata')))
+                        else:
+                            details['carriers'].add(carrier)
                 
                 details['segments'].append(segment)
                 details['total_distance'] += segment['distance']
                 details['total_time'] += segment['time']
-                details['total_price'] += segment['price']
         
         details['connections'] = len(path) - 1
         details['carriers'] = list(details['carriers'])
