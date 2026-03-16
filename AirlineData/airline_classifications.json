@@ -1,0 +1,412 @@
+{
+  "budget_airlines": [
+    {
+      "iata": "AQ",
+      "name": "9 Air Co"
+    },
+    {
+      "iata": "G9",
+      "name": "Air Arabia"
+    },
+    {
+      "iata": "3L",
+      "name": "Air Arabia Abu Dhabi"
+    },
+    {
+      "iata": "9H",
+      "name": "Air Changan"
+    },
+    {
+      "iata": "GT",
+      "name": "Air Guilin"
+    },
+    {
+      "iata": "AK",
+      "name": "AirAsia"
+    },
+    {
+      "iata": "DJ",
+      "name": "AirAsia Japan"
+    },
+    {
+      "iata": "D7",
+      "name": "AirAsia X"
+    },
+    {
+      "iata": "4Z",
+      "name": "Airlink (South Africa)"
+    },
+    {
+      "iata": "G4",
+      "name": "Allegiant Air"
+    },
+    {
+      "iata": "AD",
+      "name": "Azul"
+    },
+    {
+      "iata": "ID",
+      "name": "Batik Air"
+    },
+    {
+      "iata": "OD",
+      "name": "Batik Air Malaysia"
+    },
+    {
+      "iata": "DG",
+      "name": "Cebgo"
+    },
+    {
+      "iata": "5J",
+      "name": "Cebu Pacific Air"
+    },
+    {
+      "iata": "EU",
+      "name": "Chengdu Airlines"
+    },
+    {
+      "iata": "QG",
+      "name": "Citilink"
+    },
+    {
+      "iata": "GY",
+      "name": "Colorful GuiZhou Airlines"
+    },
+    {
+      "iata": "EW",
+      "name": "Eurowings"
+    },
+    {
+      "iata": "VF",
+      "name": "FlyViking"
+    },
+    {
+      "iata": "XY",
+      "name": "Flynas"
+    },
+    {
+      "iata": "F9",
+      "name": "Frontier Airlines"
+    },
+    {
+      "iata": "FU",
+      "name": "Fuzhou Airlines"
+    },
+    {
+      "iata": "G3",
+      "name": "Gol"
+    },
+    {
+      "iata": "GX",
+      "name": "Guangxi Beibu Gulf Airlines"
+    },
+    {
+      "iata": "QZ",
+      "name": "Indonesia AirAsia"
+    },
+    {
+      "iata": "LS",
+      "name": "Jet2"
+    },
+    {
+      "iata": "B6",
+      "name": "JetBlue Airways"
+    },
+    {
+      "iata": "JA",
+      "name": "JetSMART"
+    },
+    {
+      "iata": "JQ",
+      "name": "Jetstar"
+    },
+    {
+      "iata": "3K",
+      "name": "Jetstar Asia"
+    },
+    {
+      "iata": "GK",
+      "name": "Jetstar Japan"
+    },
+    {
+      "iata": "RY",
+      "name": "Jiangxi Airlines"
+    },
+    {
+      "iata": "JR",
+      "name": "Joy Air"
+    },
+    {
+      "iata": "HO",
+      "name": "Juneyao Airlines"
+    },
+    {
+      "iata": "KY",
+      "name": "Kunming Airlines"
+    },
+    {
+      "iata": "JT",
+      "name": "Lion Air"
+    },
+    {
+      "iata": "GJ",
+      "name": "Loong Air"
+    },
+    {
+      "iata": "8L",
+      "name": "Lucky Air"
+    },
+    {
+      "iata": "IN",
+      "name": "Nam Air"
+    },
+    {
+      "iata": "DD",
+      "name": "Nok Air"
+    },
+    {
+      "iata": "DY",
+      "name": "Norwegian Air"
+    },
+    {
+      "iata": "D8",
+      "name": "Norwegian Air Intl"
+    },
+    {
+      "iata": "DI",
+      "name": "Norwegian Air UK"
+    },
+    {
+      "iata": "BK",
+      "name": "Okay Airways"
+    },
+    {
+      "iata": "Z2",
+      "name": "Philippines AirAsia"
+    },
+    {
+      "iata": "QW",
+      "name": "Qingdao Airlines"
+    },
+    {
+      "iata": "FR",
+      "name": "Ryanair"
+    },
+    {
+      "iata": "RK",
+      "name": "Ryanair UK"
+    },
+    {
+      "iata": "S7",
+      "name": "S7 Airlines"
+    },
+    {
+      "iata": "FA",
+      "name": "Safair"
+    },
+    {
+      "iata": "OV",
+      "name": "Salam Air"
+    },
+    {
+      "iata": "TR",
+      "name": "Scoot"
+    },
+    {
+      "iata": "H2",
+      "name": "Sky Airline"
+    },
+    {
+      "iata": "WN",
+      "name": "Southwest Airlines"
+    },
+    {
+      "iata": "NK",
+      "name": "Spirit Airlines"
+    },
+    {
+      "iata": "9C",
+      "name": "Spring Airlines"
+    },
+    {
+      "iata": "SY",
+      "name": "Sun Country Airlines"
+    },
+    {
+      "iata": "Y8",
+      "name": "Suparna Airlines"
+    },
+    {
+      "iata": "FD",
+      "name": "Thai AirAsia"
+    },
+    {
+      "iata": "XJ",
+      "name": "Thai AirAsia X"
+    },
+    {
+      "iata": "SL",
+      "name": "Thai Lion Air"
+    },
+    {
+      "iata": "GS",
+      "name": "Tianjin Airlines"
+    },
+    {
+      "iata": "HV",
+      "name": "Transavia"
+    },
+    {
+      "iata": "TO",
+      "name": "Transavia France"
+    },
+    {
+      "iata": "UQ",
+      "name": "Urumqi Airlines"
+    },
+    {
+      "iata": "VB",
+      "name": "VivaAerobus"
+    },
+    {
+      "iata": "Y4",
+      "name": "Volaris"
+    },
+    {
+      "iata": "VY",
+      "name": "Vueling"
+    },
+    {
+      "iata": "PN",
+      "name": "West Air (China)"
+    },
+    {
+      "iata": "WS",
+      "name": "WestJet"
+    },
+    {
+      "iata": "IW",
+      "name": "Wings Air"
+    },
+    {
+      "iata": "W6",
+      "name": "Wizz Air"
+    },
+    {
+      "iata": "W9",
+      "name": "Wizz Air UK"
+    },
+    {
+      "iata": "U2",
+      "name": "easyJet"
+    },
+    {
+      "iata": "FZ",
+      "name": "flydubai"
+    }
+  ],
+  "premium_airlines": [
+    {
+      "iata": "NH",
+      "name": "ANA"
+    },
+    {
+      "iata": "AC",
+      "name": "Air Canada"
+    },
+    {
+      "iata": "CA",
+      "name": "Air China"
+    },
+    {
+      "iata": "AF",
+      "name": "Air France"
+    },
+    {
+      "iata": "AA",
+      "name": "American Airlines"
+    },
+    {
+      "iata": "OZ",
+      "name": "Asiana Airlines"
+    },
+    {
+      "iata": "BA",
+      "name": "British Airways"
+    },
+    {
+      "iata": "CX",
+      "name": "Cathay Pacific"
+    },
+    {
+      "iata": "MU",
+      "name": "China Eastern Airlines"
+    },
+    {
+      "iata": "CZ",
+      "name": "China Southern Airlines"
+    },
+    {
+      "iata": "DL",
+      "name": "Delta Air Lines"
+    },
+    {
+      "iata": "EK",
+      "name": "Emirates"
+    },
+    {
+      "iata": "EY",
+      "name": "Etihad Airways"
+    },
+    {
+      "iata": "HU",
+      "name": "Hainan Airlines"
+    },
+    {
+      "iata": "JL",
+      "name": "JAL"
+    },
+    {
+      "iata": "KL",
+      "name": "KLM"
+    },
+    {
+      "iata": "KE",
+      "name": "Korean Air"
+    },
+    {
+      "iata": "LH",
+      "name": "Lufthansa"
+    },
+    {
+      "iata": "QR",
+      "name": "Qatar Airways"
+    },
+    {
+      "iata": "ZH",
+      "name": "Shenzhen Airlines"
+    },
+    {
+      "iata": "3U",
+      "name": "Sichuan Airlines"
+    },
+    {
+      "iata": "SQ",
+      "name": "Singapore Airlines"
+    },
+    {
+      "iata": "UA",
+      "name": "United Airlines"
+    },
+    {
+      "iata": "MF",
+      "name": "Xiamen Airlines"
+    }
+  ],
+  "statistics": {
+    "total_budget": 76,
+    "total_premium": 24,
+    "total_unknown": 494,
+    "total_airlines": 594
+  }
+}

@@ -6,7 +6,9 @@ from route_service import RouteService
 
 app = Flask(__name__)
 
-ROUTES_FILE = Path(__file__).with_name("airline_routes.json")
+BASE_DIR = Path(__file__).parent
+
+ROUTES_FILE = BASE_DIR/"AirlineData"/"airline_routes.json"
 route_service = RouteService(ROUTES_FILE)
 
 
@@ -30,7 +32,7 @@ def search():
             result={"best": None, "routes": []},
         )
 
-    result = route_service.compute_algorithm_results(src, dst, mode)
+    result = route_service.computeAlgorithmResults(src, dst, mode)
     return render_template("results.html", src=src, dst=dst, mode=mode, result=result)
 
 
