@@ -3,17 +3,11 @@ import json
 from pathlib import Path
 
 from flask import Flask, render_template, request
+from BFS import BFS
 
 app = Flask(__name__)
 
 ROUTES_FILE = Path(__file__).with_name("airline_routes.json")
-
-
-def estimate_total_price(total_km, legs):
-    base_fare = 35
-    per_km = 0.11
-    leg_fee = 25
-    return round(base_fare + (total_km * per_km) + (legs * leg_fee), 2)
 
 
 def load_airport_graph():
@@ -39,11 +33,6 @@ def load_airport_graph():
     airports = dict(sorted(airports.items(), key=lambda item: item[0]))
     return airports, graph
 
-
-def shortest_path(graph, src, dst, mode):
-    if src not in graph or dst not in graph:
-        return None
-
 airports, route_graph = load_airport_graph()
 
 
@@ -67,12 +56,13 @@ def search():
             result={"best": None, "routes": []},
         )
 
-    best = shortest_path(route_graph, src, dst, mode)
+    bfs_solver = BFS(route_graph)
+    best = bfs_solver.shortest_path(src, dst, mode)
 
     # Provide a small set of alternatives for the results table.
     candidates = []
     for m in ("distance", "price", "stops"):
-        route = shortest_path(route_graph, src, dst, m)
+        route = bfs_solver.shortest_path(src, dst, m)
         if route and route["route"] not in [r["route"] for r in candidates]:
             candidates.append(route)
 
