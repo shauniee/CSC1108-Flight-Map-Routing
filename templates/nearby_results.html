@@ -230,6 +230,7 @@
   ></script>
   <script>
     const points = {{ result.get("map_points", []) | tojson }};
+    const radiusKm = {{ result.get("radius_km", 500) }};
     const nearbyMap = document.getElementById("nearby-map");
 
     if (nearbyMap && window.L && points.length >= 1) {
@@ -241,9 +242,21 @@
         }).setView([18, 0], 2);
 
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 7,
+          maxZoom: 10,
           attribution: "&copy; OpenStreetMap contributors"
         }).addTo(map);
+
+        const origin = validPoints.find(p => p.kind === "origin") || validPoints[0];
+        if (origin) {
+          L.circle([origin.lat, origin.lon], {
+            radius: radiusKm * 1000,
+            color: "#f28a21",
+            weight: 2,
+            fillColor: "#f28a21",
+            fillOpacity: 0.06,
+            dashArray: "6 4"
+          }).addTo(map).bindPopup(`Haversine search radius: <strong>${radiusKm} km</strong>`);
+        }
 
         validPoints.forEach((point, idx) => {
           const isOrigin = point.kind === "origin" || idx === 0;
@@ -260,7 +273,8 @@
         });
 
         const latLngs = validPoints.map((point) => [point.lat, point.lon]);
-        map.fitBounds(L.latLngBounds(latLngs), { padding: [36, 36] });
+        map.options.maxZoom = 8;
+        map.fitBounds(L.latLngBounds(latLngs), { padding: [60, 60] });
       }
     }
   </script>

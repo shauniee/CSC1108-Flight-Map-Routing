@@ -24,6 +24,7 @@ class DFS:
         max_depth:   int   = 3,
         max_results: int   = 50,
         timeout_sec: float = 5.0,
+        sort_by:     str   = "duration",
     ) -> tuple[list, bool]:
         """
         Enumerate simple paths from *start* → *end* up to *max_depth* hops.
@@ -31,7 +32,7 @@ class DFS:
         Each result is a tuple:
             (total_duration_hrs, total_price_usd, total_km, path_list)
 
-        Results are sorted by total duration (ascending).
+        Results are sorted by the specified criterion (ascending).
 
         Returns
         -------
@@ -74,7 +75,16 @@ class DFS:
                     ))
 
         timed_out = len(stack) > 0   # items still on stack → stopped early
-        results.sort(key=lambda x: x[0])
+        
+        sort_key_map = {
+            "duration": lambda x: x[0],
+            "price":    lambda x: x[1],
+            "km":       lambda x: x[2],
+        }
+        
+        sort_key = sort_key_map.get(sort_by, sort_key_map["duration"])
+        results.sort(key=sort_key)
+        
         return results, timed_out
 
     # Convenience helpers
