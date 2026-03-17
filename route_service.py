@@ -4,6 +4,7 @@ import math
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from dfs import DFS
 from dijkstra import Dijkstra
 from loadDataset import WeightedGraph
 from yen import Yen
@@ -19,6 +20,7 @@ class RouteService:
         self.weightedGraph = WeightedGraph()
         self.dijkstraSolver = None
         self.yenSolver = None
+        self.dfsSolver = None
         self.priceCalculator = None  # Will initialize after loading classifications
         self.airlineClassifications = {}  # Store airline classifications
         self._loadRoutingContext()
@@ -58,6 +60,23 @@ class RouteService:
         self.airportMeta = airportMeta
         self.dijkstraSolver = Dijkstra(self.weightedGraph)
         self.yenSolver = Yen(self.weightedGraph, dijkstra=self.dijkstraSolver)
+        self.dfsSolver = DFS(self._buildDfsGraph())
+
+    def _buildDfsGraph(self):
+        dfsGraph = {}
+        for fromCode, neighbors in self.weightedGraph.graph.items():
+            dfsGraph[fromCode] = []
+            for toCode, edge in neighbors.items():
+                dfsGraph[fromCode].append(
+                    (
+                        toCode,
+                        float(edge.get("time", 0)) / 60.0,
+                        float(edge.get("price", 0)),
+                        float(edge.get("distance", 0)),
+                        edge.get("carriers", []),
+                    )
+                )
+        return dfsGraph
 
     def _loadAirlineClassifications(self):
         """Load airline classifications from JSON file"""
@@ -187,6 +206,91 @@ class RouteService:
         )
         return 2 * r * math.asin(math.sqrt(a))
 
+    def findAirportsWithinRadius(self, sourceCode, radiusKm):
+        origin = self.airportMeta.get(sourceCode)
+        if not origin:
+            return {
+                "type": "proximity",
+                "origin": None,
+                "airports": [],
+                "map_points": [],
+                "radius_km": radiusKm,
+                "count": 0,
+            }
+
+        originLat = origin.get("latitude")
+        originLon = origin.get("longitude")
+        if originLat is None or originLon is None:
+            return {
+                "type": "proximity",
+                "origin": None,
+                "airports": [],
+                "map_points": [],
+                "radius_km": radiusKm,
+                "count": 0,
+            }
+
+        airports = []
+        mapPoints = [
+            {
+                "code": sourceCode,
+                "label": origin.get("display_name", sourceCode),
+                "lat": originLat,
+                "lon": originLon,
+                "kind": "origin",
+            }
+        ]
+
+        for code, meta in self.airportMeta.items():
+            if code == sourceCode:
+                continue
+
+            lat = meta.get("latitude")
+            lon = meta.get("longitude")
+            if lat is None or lon is None:
+                continue
+
+            distanceKm = self.haversineKm(originLat, originLon, lat, lon)
+            if distanceKm > radiusKm:
+                continue
+
+            airport = {
+                "code": code,
+                "display_name": meta.get("display_name", code),
+                "city_name": meta.get("city_name", ""),
+                "country": meta.get("country", ""),
+                "distance_km": round(distanceKm, 1),
+                "latitude": lat,
+                "longitude": lon,
+            }
+            airports.append(airport)
+            mapPoints.append(
+                {
+                    "code": code,
+                    "label": airport["display_name"],
+                    "lat": lat,
+                    "lon": lon,
+                    "kind": "nearby",
+                }
+            )
+
+        airports.sort(key=lambda item: item["distance_km"])
+        return {
+            "type": "proximity",
+            "origin": {
+                "code": sourceCode,
+                "display_name": origin.get("display_name", sourceCode),
+                "city_name": origin.get("city_name", ""),
+                "country": origin.get("country", ""),
+                "latitude": originLat,
+                "longitude": originLon,
+            },
+            "airports": airports,
+            "map_points": mapPoints,
+            "radius_km": radiusKm,
+            "count": len(airports),
+        }
+
     def _buildResultFromRoute(self, routeCodes, mode):
         if not routeCodes or len(routeCodes) < 2:
             return None
@@ -284,6 +388,44 @@ class RouteService:
             )
 
         return self._finalizeResult(routeCodes, legs, mapPoints, mode, segments_details)
+
+    def buildRouteResult(self, routeCodes, mode):
+        return self._buildResultFromRoute(routeCodes, mode)
+
+    def computeDfsResults(self, sourceCode, destinationCode, mode, maxDepth=4, maxResults=25, timeoutSec=5.0):
+        if not self.dfsSolver:
+            return {"routes": [], "timed_out": False}
+
+        routes, timedOut = self.dfsSolver.all_routes(
+            sourceCode,
+            destinationCode,
+            max_depth=maxDepth,
+            max_results=maxResults,
+            timeout_sec=timeoutSec,
+        )
+
+        builtRoutes = []
+        seenPaths = set()
+        for _, _, _, path in routes:
+            pathKey = tuple(path)
+            if pathKey in seenPaths:
+                continue
+            seenPaths.add(pathKey)
+            built = self._buildResultFromRoute(path, mode)
+            if built:
+                builtRoutes.append(built)
+
+        if mode == "price":
+            builtRoutes.sort(key=lambda item: (item.get("price", float("inf")), item.get("distance_exact", float("inf"))))
+        elif mode == "stops":
+            builtRoutes.sort(key=lambda item: (item.get("stops", float("inf")), item.get("distance_exact", float("inf"))))
+        else:
+            builtRoutes.sort(key=lambda item: item.get("distance_exact", float("inf")))
+
+        return {
+            "routes": builtRoutes,
+            "timed_out": timedOut,
+        }
 
     def _pickBestRoute(self, results, mode):
         if not results:

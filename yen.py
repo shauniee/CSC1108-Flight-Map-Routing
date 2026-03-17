@@ -26,12 +26,14 @@ class Yen:
             return None
         
         # Use Dijkstra with specified weight type
-        path, dist, time, price = self.dijkstra.findShortestPath(start, end, weight_type)
+        path, dist, time = self.dijkstra.findShortestPath(start, end, weight_type)
+        price = 0
         
         # If no path found, try to find any path within limit
         if not path:
             print(f"No direct path found, trying to find any path within transit limit")
-            path, dist, time, price = self.dijkstra.findAllPathsWithMaxTransits(start, end, weight_type)
+            path, dist, time = self.dijkstra.findAllPathsWithMaxTransits(start, end)
+            price = 0
         
         if not path:
             print(f"No path found from {start} to {end}")
@@ -107,9 +109,10 @@ class Yen:
                     # Create a new Dijkstra instance with the modified graph
                     temp = self._createDijkstraWithModifiedGraph(modified_graph)
 
-                    spurPath, spurDist, spurTime, spurPrice = temp.findShortestPath(
+                    spurPath, spurDist, spurTime = temp.findShortestPath(
                         spurNode, end, weight_type
                     )
+                    spurPrice = 0
 
                     if spurPath and len(spurPath) > 0:
                         print(f"    Found spur path: {' -> '.join(spurPath)}")

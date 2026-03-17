@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -184,6 +184,30 @@
       color: #4f607d;
     }
 
+    .route-link-btn {
+      border: 1px solid #ccdbef;
+      background: #fff;
+      color: #224776;
+      border-radius: 999px;
+      padding: 0.35rem 0.7rem;
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+
+    .route-link-btn:hover {
+      background: #eef6ff;
+      border-color: #90b9ea;
+      color: #0c55a3;
+    }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
     @keyframes rise {
       from {
         opacity: 0;
@@ -207,12 +231,18 @@
   {% if result is mapping %}
     {% set best = result.get("best", result) %}
     {% set routes = result.get("routes", result.get("all_routes", [])) %}
+    {% set dfs_routes = result.get("dfs_routes", []) %}
+    {% set dfs_timed_out = result.get("dfs_timed_out", false) %}
   {% elif result is sequence and result is not string %}
     {% set routes = result %}
     {% set best = routes[0] if routes else none %}
+    {% set dfs_routes = [] %}
+    {% set dfs_timed_out = false %}
   {% else %}
     {% set best = none %}
     {% set routes = [] %}
+    {% set dfs_routes = [] %}
+    {% set dfs_timed_out = false %}
   {% endif %}
 
   <main class="container py-5">
@@ -286,13 +316,27 @@
                 <div class="col-6 col-lg-3">
                   <div class="metric-card">
                     <p class="metric-label">Departure UTC</p>
-                    <p class="metric-value">{{ best.get("departure_utc", "N/A") }}</p>
+                    {% set departure_utc = best.get("departure_utc") %}
+                    <p class="metric-value">
+                      {% if departure_utc %}
+                        {{ departure_utc[:10] }}<br>{{ departure_utc[11:16] }} UTC
+                      {% else %}
+                        N/A
+                      {% endif %}
+                    </p>
                   </div>
                 </div>
                 <div class="col-6 col-lg-3">
                   <div class="metric-card">
                     <p class="metric-label">Arrival UTC</p>
-                    <p class="metric-value">{{ best.get("arrival_utc", "N/A") }}</p>
+                    {% set arrival_utc = best.get("arrival_utc") %}
+                    <p class="metric-value">
+                      {% if arrival_utc %}
+                        {{ arrival_utc[:10] }}<br>{{ arrival_utc[11:16] }} UTC
+                      {% else %}
+                        N/A
+                      {% endif %}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -337,6 +381,17 @@
           </div>
         </div>
 
+        {% if best %}
+          <div class="action-row mb-4">
+            <form method="post" action="/dfs-routes" class="mb-0">
+              <input type="hidden" name="src" value="{{ src }}">
+              <input type="hidden" name="dst" value="{{ dst }}">
+              <input type="hidden" name="mode" value="{{ mode }}">
+              <button type="submit" class="route-link-btn">Show All Routes (DFS)</button>
+            </form>
+          </div>
+        {% endif %}
+
         {% if routes and routes|length > 0 %}
           <div class="panel mb-4">
             <div class="card-body p-4 p-md-5">
@@ -350,14 +405,15 @@
                       <th scope="col">Distance</th>
                       <th scope="col">Price</th>
                       <th scope="col">Stops</th>
+                      <th scope="col">Open</th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for item in routes %}
+                      {% set route = item.get("route", []) %}
                       <tr>
                         <td>{{ loop.index }}</td>
                         <td>
-                          {% set route = item.get("route", []) %}
                           {% if route %}
                             <span class="badge text-bg-light border">{{ " -> ".join(route) }}</span>
                           {% else %}
@@ -367,6 +423,77 @@
                         <td>{{ item.get("distance", "N/A") }} km</td>
                         <td>${{ item.get("price", "N/A") }}</td>
                         <td>{{ item.get("stops", "N/A") }}</td>
+                        <td>
+                          {% if route %}
+                            <form method="post" action="/route-option" class="mb-0">
+                              <input type="hidden" name="src" value="{{ src }}">
+                              <input type="hidden" name="dst" value="{{ dst }}">
+                              <input type="hidden" name="mode" value="{{ mode }}">
+                              <input type="hidden" name="route" value="{{ route | join(',') }}">
+                              <button type="submit" class="route-link-btn">View Route</button>
+                            </form>
+                          {% else %}
+                            -
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+
+        {% if dfs_routes %}
+          <div class="panel mb-4">
+            <div class="card-body p-4 p-md-5">
+              <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                <h2 class="h5 mb-0">All Possible Routes (DFS)</h2>
+                {% if dfs_timed_out %}
+                  <span class="best-badge">Partial results: capped by timeout or result limit</span>
+                {% endif %}
+              </div>
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th scope="col">Rank</th>
+                      <th scope="col">Route</th>
+                      <th scope="col">Distance</th>
+                      <th scope="col">Price</th>
+                      <th scope="col">Stops</th>
+                      <th scope="col">Open</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for item in dfs_routes %}
+                      {% set route = item.get("route", []) %}
+                      <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>
+                          {% if route %}
+                            <span class="badge text-bg-light border">{{ " -> ".join(route) }}</span>
+                          {% else %}
+                            N/A
+                          {% endif %}
+                        </td>
+                        <td>{{ item.get("distance", "N/A") }} km</td>
+                        <td>${{ item.get("price", "N/A") }}</td>
+                        <td>{{ item.get("stops", "N/A") }}</td>
+                        <td>
+                          {% if route %}
+                            <form method="post" action="/route-option" class="mb-0">
+                              <input type="hidden" name="src" value="{{ src }}">
+                              <input type="hidden" name="dst" value="{{ dst }}">
+                              <input type="hidden" name="mode" value="{{ mode }}">
+                              <input type="hidden" name="route" value="{{ route | join(',') }}">
+                              <button type="submit" class="route-link-btn">View Route</button>
+                            </form>
+                          {% else %}
+                            -
+                          {% endif %}
+                        </td>
                       </tr>
                     {% endfor %}
                   </tbody>
@@ -381,7 +508,6 @@
     </div>
   </main>
 
-  // Script to display the route on a Leaflet map with an animated plane marker
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
@@ -442,11 +568,10 @@
         });
 
         const planeMarker = L.marker(latLngs[0], { icon: planeIcon }).addTo(map);
-
-                const cycleMs = 14000;
+        const cycleMs = 14000;
         let startTs = null;
 
-                function placePlane(progress) {
+        function placePlane(progress) {
           const projectedPoints = latLngs.map((latLng) => map.latLngToLayerPoint(latLng));
           const segmentLengths = [];
           let totalLength = 0;
@@ -476,8 +601,7 @@
           const x = fromPoint.x + ((toPoint.x - fromPoint.x) * ratio);
           const y = fromPoint.y + ((toPoint.y - fromPoint.y) * ratio);
 
-          const planeLatLng = map.layerPointToLatLng(L.point(x, y));
-          planeMarker.setLatLng(planeLatLng);
+          planeMarker.setLatLng(map.layerPointToLatLng(L.point(x, y)));
 
           const bearing = calcScreenBearingDeg(fromPoint, toPoint);
           const planeEl = planeMarker.getElement()?.querySelector(".plane-icon");
@@ -502,5 +626,3 @@
   </script>
 </body>
 </html>
-
-
