@@ -381,17 +381,6 @@
           </div>
         </div>
 
-        {% if best %}
-          <div class="action-row mb-4">
-            <form method="post" action="/dfs-routes" class="mb-0">
-              <input type="hidden" name="src" value="{{ src }}">
-              <input type="hidden" name="dst" value="{{ dst }}">
-              <input type="hidden" name="mode" value="{{ mode }}">
-              <button type="submit" class="route-link-btn">Show All Routes (DFS)</button>
-            </form>
-          </div>
-        {% endif %}
-
         {% if routes and routes|length > 0 %}
           <div class="panel mb-4">
             <div class="card-body p-4 p-md-5">
@@ -425,13 +414,8 @@
                         <td>{{ item.get("stops", "N/A") }}</td>
                         <td>
                           {% if route %}
-                            <form method="post" action="/route-option" class="mb-0">
-                              <input type="hidden" name="src" value="{{ src }}">
-                              <input type="hidden" name="dst" value="{{ dst }}">
-                              <input type="hidden" name="mode" value="{{ mode }}">
-                              <input type="hidden" name="route" value="{{ route | join(',') }}">
-                              <button type="submit" class="route-link-btn">View Route</button>
-                            </form>
+                            <button type="button" class="route-link-btn"
+                              onclick="submitRoute('{{ route | join(',') }}')">View Route</button>
                           {% else %}
                             -
                           {% endif %}
@@ -449,10 +433,19 @@
           <div class="panel mb-4">
             <div class="card-body p-4 p-md-5">
               <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-                <h2 class="h5 mb-0">All Possible Routes (DFS)</h2>
-                {% if dfs_timed_out %}
+                <div>
+                   <h2 class="h5 mb-1">All Possible Routes (DFS)</h2>
+                   <p class="mb-0 text-secondary" style="font-size:.85rem">Max 3 Stops &nbsp;.&nbsp; Up to 25 routes</p>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  {% if dfs_timed_out %}
                   <span class="best-badge">Partial results: capped by timeout or result limit</span>
-                {% endif %}
+                  {% endif %}
+                  <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary active" id="dfs-btn-dist" onclick="sortDfs('distance')">Sort by Distance</button>
+                    <button type="button" class="btn btn-outline-primary" id="dfs-btn-price" onclick="sortDfs('price')">Sort by Price</button>
+                  </div>
+                </div>
               </div>
               <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
@@ -466,7 +459,7 @@
                       <th scope="col">Open</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody id="dfs-tbody">
                     {% for item in dfs_routes %}
                       {% set route = item.get("route", []) %}
                       <tr>
@@ -483,13 +476,8 @@
                         <td>{{ item.get("stops", "N/A") }}</td>
                         <td>
                           {% if route %}
-                            <form method="post" action="/route-option" class="mb-0">
-                              <input type="hidden" name="src" value="{{ src }}">
-                              <input type="hidden" name="dst" value="{{ dst }}">
-                              <input type="hidden" name="mode" value="{{ mode }}">
-                              <input type="hidden" name="route" value="{{ route | join(',') }}">
-                              <button type="submit" class="route-link-btn">View Route</button>
-                            </form>
+                            <button type="button" class="route-link-btn"
+                              onclick="submitRoute('{{ route | join(',') }}')">View Route</button>
                           {% else %}
                             -
                           {% endif %}
@@ -622,6 +610,37 @@
         requestAnimationFrame(animate);
         map.fitBounds(line.getBounds(), { padding: [36, 36] });
       }
+    }
+  </script>
+
+  <form id="route-form" method="post" action="/route-option" style="display:none">
+    <input type="hidden" name="src" value="{{ src }}">
+    <input type="hidden" name="dst" value="{{ dst }}">
+    <input type="hidden" name="mode" value="{{ mode }}">
+    <input type="hidden" name="route" id="route-form-route" value="">
+  </form>
+
+  <script>
+    function submitRoute(routeValue) {
+      document.getElementById('route-form-route').value = routeValue;
+      document.getElementById('route-form').submit();
+    }
+
+    function sortDfs(mode) {
+      const rows = Array.from(document.querySelectorAll('#dfs-tbody tr'));
+      rows.sort((a, b) => {
+        const idx = mode === 'price' ? 3 : 2;
+        const valA = parseFloat(a.cells[idx].textContent.replace(/[^0-9.]/g, ''));
+        const valB = parseFloat(b.cells[idx].textContent.replace(/[^0-9.]/g, ''));
+        return valA - valB;
+      });
+      const tbody = document.getElementById('dfs-tbody');
+      rows.forEach((row, i) => {
+        row.cells[0].textContent = i + 1;
+        tbody.appendChild(row);
+      });
+      document.getElementById('dfs-btn-dist').classList.toggle('active', mode === 'distance');
+      document.getElementById('dfs-btn-price').classList.toggle('active', mode === 'price');
     }
   </script>
 </body>

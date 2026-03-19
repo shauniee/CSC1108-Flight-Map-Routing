@@ -4,8 +4,10 @@ import math
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from betweenness import Betweenness
 from dfs import DFS
 from dijkstra import Dijkstra
+from flightSchedule import FlightSchedule
 from loadDataset import WeightedGraph
 from yen import Yen
 from AirlineData.pricing import PriceCalculation  # Import the pricing class
@@ -21,6 +23,8 @@ class RouteService:
         self.dijkstraSolver = None
         self.yenSolver = None
         self.dfsSolver = None
+        self.betweennessSolver = None
+        self.scheduleSolver = None
         self.priceCalculator = None  # Will initialize after loading classifications
         self.airlineClassifications = {}  # Store airline classifications
         self._loadRoutingContext()
@@ -61,6 +65,8 @@ class RouteService:
         self.dijkstraSolver = Dijkstra(self.weightedGraph)
         self.yenSolver = Yen(self.weightedGraph, dijkstra=self.dijkstraSolver)
         self.dfsSolver = DFS(self._buildDfsGraph())
+        self.betweennessSolver = Betweenness(self.weightedGraph.graph)
+        self.scheduleSolver = FlightSchedule(self.airportMeta, self.weightedGraph.graph)
 
     def _buildDfsGraph(self):
         dfsGraph = {}
@@ -392,7 +398,7 @@ class RouteService:
     def buildRouteResult(self, routeCodes, mode):
         return self._buildResultFromRoute(routeCodes, mode)
 
-    def computeDfsResults(self, sourceCode, destinationCode, mode, maxDepth=4, maxResults=25, timeoutSec=5.0):
+    def computeDfsResults(self, sourceCode, destinationCode, mode, maxDepth=3, maxResults=25, timeoutSec=5.0, sort_by = "distance"):
         if not self.dfsSolver:
             return {"routes": [], "timed_out": False}
 
@@ -402,6 +408,7 @@ class RouteService:
             max_depth=maxDepth,
             max_results=maxResults,
             timeout_sec=timeoutSec,
+            sort_by=sort_by
         )
 
         builtRoutes = []
@@ -609,3 +616,25 @@ class RouteService:
         
         print(f"Returning best route and {len(alternatives)} alternatives")
         return result
+    
+
+    def get_hubs(self, top_n: int = 20) -> list:
+        """
+        Return the top *top_n* hub airports ranked by Betweenness Centrality.
+        Cached after first call so subsequent visits are instant.
+        """
+        if not hasattr(self, "_hub_cache"):
+            raw = self.betweennessSolver.top_hubs(top_n=top_n)
+            for item in raw:
+                meta = self.airportMeta.get(item["code"], {})
+                item["display_name"] = meta.get("display_name", item["code"])
+                item["city_name"]    = meta.get("city_name", "")
+                item["country"]      = meta.get("country", "")
+                item["latitude"]     = meta.get("latitude")
+                item["longitude"]    = meta.get("longitude")
+            self._hub_cache = raw
+        return self._hub_cache
+ 
+    def get_flight_schedule(self, src: str, dst: str) -> dict:
+        """Generate a daily flight timetable from src to dst."""
+        return self.scheduleSolver.generate(src, dst, num_flights=8)
