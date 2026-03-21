@@ -13,6 +13,12 @@
     integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
     crossorigin="anonymous"
   >
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  >
   <style>
     :root {
       --bg-start: #f4f8ff;
@@ -25,7 +31,6 @@
       --brand-strong: #0c55a3;
       --accent: #f28a21;
       --line: #dce6f5;
-      --ok: #0f9d58;
       --warn-soft: #fff3dd;
     }
 
@@ -85,14 +90,18 @@
     .metric-label {
       margin-bottom: 0.25rem;
       color: var(--muted);
-      font-size: 0.88rem;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 700;
     }
 
     .metric-value {
       margin-bottom: 0;
       font-weight: 800;
-      font-size: 1.2rem;
+      font-size: 1.12rem;
       color: var(--brand-strong);
+      word-break: break-word;
     }
 
     .best-badge {
@@ -108,6 +117,19 @@
       border: 1px solid #c8e2ff;
     }
 
+    .demo-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 0.3rem 0.7rem;
+      font-size: 0.78rem;
+      font-weight: 800;
+      background: #fff5e8;
+      color: #8a4b00;
+      border: 1px solid #ffd39f;
+      margin-left: 0.45rem;
+    }
+
     .no-route {
       background: var(--warn-soft);
       border: 1px solid #ffd597;
@@ -116,11 +138,74 @@
       padding: 1rem;
     }
 
+    .map-shell {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      background: #edf4ff;
+    }
+
+    #route-map {
+      width: 100%;
+      height: 430px;
+    }
+
+    .plane-icon-wrap {
+      background: transparent;
+      border: 0;
+    }
+
+    .plane-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: #ffffff;
+      border: 2px solid #0b4f99;
+      box-shadow: 0 6px 14px rgba(13, 53, 109, 0.28);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-origin: 50% 50%;
+      transition: transform 0.1s linear;
+      pointer-events: none;
+    }
+
+    .plane-icon svg {
+      width: 22px;
+      height: 22px;
+      display: block;
+      fill: #0b4f99;
+    }
+
     .table thead th {
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       letter-spacing: 0.05em;
       text-transform: uppercase;
       color: #4f607d;
+    }
+
+    .route-link-btn {
+      border: 1px solid #ccdbef;
+      background: #fff;
+      color: #224776;
+      border-radius: 999px;
+      padding: 0.35rem 0.7rem;
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+
+    .route-link-btn:hover {
+      background: #eef6ff;
+      border-color: #90b9ea;
+      color: #0c55a3;
+    }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: flex-end;
     }
 
     @keyframes rise {
@@ -139,29 +224,41 @@
   {% set mode_labels = {
     "distance": "Shortest distance",
     "price": "Cheapest price",
-    "stops": "Fewest stops"
+    "stops": "Fewest stops",
+    "alternative": "Alternative (Yen)"
   } %}
 
   {% if result is mapping %}
     {% set best = result.get("best", result) %}
     {% set routes = result.get("routes", result.get("all_routes", [])) %}
+    {% set dfs_routes = result.get("dfs_routes", []) %}
+    {% set dfs_timed_out = result.get("dfs_timed_out", false) %}
   {% elif result is sequence and result is not string %}
     {% set routes = result %}
     {% set best = routes[0] if routes else none %}
+    {% set dfs_routes = [] %}
+    {% set dfs_timed_out = false %}
   {% else %}
     {% set best = none %}
     {% set routes = [] %}
+    {% set dfs_routes = [] %}
+    {% set dfs_timed_out = false %}
   {% endif %}
 
   <main class="container py-5">
     <div class="row justify-content-center">
-      <div class="col-12 col-lg-10">
+      <div class="col-12 col-xl-11">
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
           <div>
             <h1 class="page-title h2 mb-1">{{ src }} to {{ dst }}</h1>
             <p class="mb-0 text-secondary">Computed using {{ mode_labels.get(mode, mode|title) }}</p>
           </div>
-          <span class="best-badge">Optimized: {{ mode_labels.get(mode, mode|title) }}</span>
+          <div>
+            <span class="best-badge">Optimized: {{ mode_labels.get(mode, mode|title) }}</span>
+            {% if best and best.get("mock") %}
+              <span class="demo-badge">Demo Data</span>
+            {% endif %}
+          </div>
         </div>
 
         <div class="panel mb-4">
@@ -169,39 +266,111 @@
             <h2 class="h5 mb-3">Best Route</h2>
 
             {% if best %}
-              {% set best_route = best.get("route", best.get("path", best.get("airports", best.get("best_route", [])))) %}
-              {% if best_route %}
-                <div class="chip-wrap mb-4">
-                  {% for airport in best_route %}
-                    <span class="route-chip">{{ airport }}</span>
-                    {% if not loop.last %}
-                      <span class="route-arrow">-></span>
-                    {% endif %}
-                  {% endfor %}
-                </div>
-              {% else %}
-                <p class="mb-4">No route details available.</p>
-              {% endif %}
+              {% set best_route = best.get("route", []) %}
+              <div class="chip-wrap mb-4">
+                {% for airport in best_route %}
+                  <span class="route-chip">{{ airport }}</span>
+                  {% if not loop.last %}
+                    <span class="route-arrow">-></span>
+                  {% endif %}
+                {% endfor %}
+              </div>
 
-              <div class="row g-3">
-                <div class="col-12 col-md-4">
+              <div class="row g-3 mb-4">
+                <div class="col-6 col-lg-3">
                   <div class="metric-card">
-                    <p class="metric-label">Total distance</p>
+                    <p class="metric-label">Distance</p>
                     <p class="metric-value">{{ best.get("distance", "N/A") }} km</p>
                   </div>
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-6 col-lg-3">
                   <div class="metric-card">
-                    <p class="metric-label">Estimated total price</p>
+                    <p class="metric-label">Price</p>
                     <p class="metric-value">${{ best.get("price", "N/A") }}</p>
                   </div>
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-6 col-lg-3">
                   <div class="metric-card">
                     <p class="metric-label">Stops</p>
                     <p class="metric-value">{{ best.get("stops", "N/A") }}</p>
                   </div>
                 </div>
+                <div class="col-6 col-lg-3">
+                  <div class="metric-card">
+                    <p class="metric-label">Cruise Avg</p>
+                    <p class="metric-value">{{ best.get("avg_speed_kmh", "N/A") }} km/h</p>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="metric-card">
+                    <p class="metric-label">Flight Time</p>
+                    <p class="metric-value">{{ best.get("flight_time_label", "N/A") }}</p>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="metric-card">
+                    <p class="metric-label">Layovers</p>
+                    <p class="metric-value">{{ best.get("layover_time_label", "N/A") }}</p>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="metric-card">
+                    <p class="metric-label">Departure UTC</p>
+                    {% set departure_utc = best.get("departure_utc") %}
+                    <p class="metric-value">
+                      {% if departure_utc %}
+                        {{ departure_utc[:10] }}<br>{{ departure_utc[11:16] }} UTC
+                      {% else %}
+                        N/A
+                      {% endif %}
+                    </p>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="metric-card">
+                    <p class="metric-label">Arrival UTC</p>
+                    {% set arrival_utc = best.get("arrival_utc") %}
+                    <p class="metric-value">
+                      {% if arrival_utc %}
+                        {{ arrival_utc[:10] }}<br>{{ arrival_utc[11:16] }} UTC
+                      {% else %}
+                        N/A
+                      {% endif %}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="map-shell mb-4">
+                <div id="route-map"></div>
+              </div>
+
+              <h3 class="h6 mb-3">Leg Breakdown</h3>
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th scope="col">Leg</th>
+                      <th scope="col">From</th>
+                      <th scope="col">To</th>
+                      <th scope="col">Distance</th>
+                      <th scope="col">Duration</th>
+                      <th scope="col">Carrier</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for leg in best.get("legs", []) %}
+                      <tr>
+                        <td>#{{ leg.get("leg_number") }}</td>
+                        <td>{{ leg.get("from") }}</td>
+                        <td>{{ leg.get("to") }}</td>
+                        <td>{{ leg.get("distance_km") }} km</td>
+                        <td>{{ leg.get("duration_label") }}</td>
+                        <td>{{ ", ".join(leg.get("carrier_names", [])) }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
               </div>
             {% else %}
               <div class="no-route">
@@ -212,24 +381,27 @@
           </div>
         </div>
 
-        {% if routes and routes|length > 1 %}
+        {% if routes and routes|length > 0 %}
           <div class="panel mb-4">
             <div class="card-body p-4 p-md-5">
-              <h2 class="h5 mb-3">Alternative Options</h2>
+              <h2 class="h5 mb-3">Alternative Routes</h2>
               <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                   <thead>
                     <tr>
+                      <th scope="col">Rank</th>
                       <th scope="col">Route</th>
                       <th scope="col">Distance</th>
                       <th scope="col">Price</th>
                       <th scope="col">Stops</th>
+                      <th scope="col">Open</th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for item in routes %}
-                      {% set route = item.get("route", item.get("path", item.get("airports", []))) %}
+                      {% set route = item.get("route", []) %}
                       <tr>
+                        <td>{{ loop.index }}</td>
                         <td>
                           {% if route %}
                             <span class="badge text-bg-light border">{{ " -> ".join(route) }}</span>
@@ -240,6 +412,76 @@
                         <td>{{ item.get("distance", "N/A") }} km</td>
                         <td>${{ item.get("price", "N/A") }}</td>
                         <td>{{ item.get("stops", "N/A") }}</td>
+                        <td>
+                          {% if route %}
+                            <button type="button" class="route-link-btn"
+                              onclick="submitRoute('{{ route | join(',') }}')">View Route</button>
+                          {% else %}
+                            -
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+
+        {% if dfs_routes %}
+          <div class="panel mb-4">
+            <div class="card-body p-4 p-md-5">
+              <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                <div>
+                   <h2 class="h5 mb-1">All Possible Routes (DFS)</h2>
+                   <p class="mb-0 text-secondary" style="font-size:.85rem">Max 3 Stops &nbsp;.&nbsp; Up to 25 routes</p>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  {% if dfs_timed_out %}
+                  <span class="best-badge">Partial results: capped by timeout or result limit</span>
+                  {% endif %}
+                  <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary active" id="dfs-btn-dist" onclick="sortDfs('distance')">Sort by Distance</button>
+                    <button type="button" class="btn btn-outline-primary" id="dfs-btn-price" onclick="sortDfs('price')">Sort by Price</button>
+                  </div>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th scope="col">Rank</th>
+                      <th scope="col">Route</th>
+                      <th scope="col">Distance</th>
+                      <th scope="col">Price</th>
+                      <th scope="col">Stops</th>
+                      <th scope="col">Open</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dfs-tbody">
+                    {% for item in dfs_routes %}
+                      {% set route = item.get("route", []) %}
+                      <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>
+                          {% if route %}
+                            <span class="badge text-bg-light border">{{ " -> ".join(route) }}</span>
+                          {% else %}
+                            N/A
+                          {% endif %}
+                        </td>
+                        <td>{{ item.get("distance", "N/A") }} km</td>
+                        <td>${{ item.get("price", "N/A") }}</td>
+                        <td>{{ item.get("stops", "N/A") }}</td>
+                        <td>
+                          {% if route %}
+                            <button type="button" class="route-link-btn"
+                              onclick="submitRoute('{{ route | join(',') }}')">View Route</button>
+                          {% else %}
+                            -
+                          {% endif %}
+                        </td>
                       </tr>
                     {% endfor %}
                   </tbody>
@@ -253,5 +495,153 @@
       </div>
     </div>
   </main>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+    const points = {{ (best.get("map_points", []) if best else []) | tojson }};
+    const routeMap = document.getElementById("route-map");
+
+    function calcPixelDistance(a, b) {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      return Math.sqrt((dx * dx) + (dy * dy));
+    }
+
+    function calcScreenBearingDeg(fromPoint, toPoint) {
+      return Math.atan2(toPoint.y - fromPoint.y, toPoint.x - fromPoint.x) * 180 / Math.PI;
+    }
+
+    if (routeMap && window.L && points.length >= 2) {
+      const validPoints = points.filter((point) => typeof point.lat === "number" && typeof point.lon === "number");
+      if (validPoints.length >= 2) {
+        const map = L.map("route-map", {
+          zoomControl: true,
+          worldCopyJump: true
+        }).setView([18, 0], 2);
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 7,
+          attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(map);
+
+        const latLngs = validPoints.map((point) => [point.lat, point.lon]);
+        const line = L.polyline(latLngs, {
+          color: "#0f6bcf",
+          weight: 4,
+          opacity: 0.9,
+          lineJoin: "round"
+        }).addTo(map);
+
+        validPoints.forEach((point, idx) => {
+          const marker = L.circleMarker([point.lat, point.lon], {
+            radius: idx === 0 || idx === validPoints.length - 1 ? 7 : 5,
+            color: "#0b4f99",
+            weight: 2,
+            fillColor: idx === 0 || idx === validPoints.length - 1 ? "#f28a21" : "#0f6bcf",
+            fillOpacity: 0.95
+          }).addTo(map);
+
+          marker.bindPopup(`<strong>${point.code}</strong><br>${point.label}<br>Waypoint ${idx + 1}`);
+        });
+
+        const planeIcon = L.divIcon({
+          html: '<div class="plane-icon"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M61 32L39 24L29 5L23 6L27 26L14 21L10 24L19 32L10 40L14 43L27 38L23 58L29 59L39 40L61 32Z"></path></svg></div>',
+          className: "plane-icon-wrap",
+          iconSize: [34, 34],
+          iconAnchor: [17, 17]
+        });
+
+        const planeMarker = L.marker(latLngs[0], { icon: planeIcon }).addTo(map);
+        const cycleMs = 14000;
+        let startTs = null;
+
+        function placePlane(progress) {
+          const projectedPoints = latLngs.map((latLng) => map.latLngToLayerPoint(latLng));
+          const segmentLengths = [];
+          let totalLength = 0;
+
+          for (let i = 0; i < projectedPoints.length - 1; i += 1) {
+            const segLen = calcPixelDistance(projectedPoints[i], projectedPoints[i + 1]);
+            segmentLengths.push(segLen);
+            totalLength += segLen;
+          }
+
+          if (totalLength <= 0) {
+            return;
+          }
+
+          let remaining = totalLength * progress;
+          let segmentIndex = 0;
+
+          while (segmentIndex < segmentLengths.length - 1 && remaining > segmentLengths[segmentIndex]) {
+            remaining -= segmentLengths[segmentIndex];
+            segmentIndex += 1;
+          }
+
+          const fromPoint = projectedPoints[segmentIndex];
+          const toPoint = projectedPoints[segmentIndex + 1] || projectedPoints[segmentIndex];
+          const segmentLen = Math.max(segmentLengths[segmentIndex] || 1, 1e-6);
+          const ratio = Math.min(Math.max(remaining / segmentLen, 0), 1);
+          const x = fromPoint.x + ((toPoint.x - fromPoint.x) * ratio);
+          const y = fromPoint.y + ((toPoint.y - fromPoint.y) * ratio);
+
+          planeMarker.setLatLng(map.layerPointToLatLng(L.point(x, y)));
+
+          const bearing = calcScreenBearingDeg(fromPoint, toPoint);
+          const planeEl = planeMarker.getElement()?.querySelector(".plane-icon");
+          if (planeEl) {
+            planeEl.style.transform = `rotate(${bearing}deg)`;
+          }
+        }
+
+        function animate(ts) {
+          if (!startTs) {
+            startTs = ts;
+          }
+          const progress = ((ts - startTs) % cycleMs) / cycleMs;
+          placePlane(progress);
+          requestAnimationFrame(animate);
+        }
+
+        requestAnimationFrame(animate);
+        map.fitBounds(line.getBounds(), { padding: [36, 36] });
+      }
+    }
+  </script>
+
+  <form id="route-form" method="post" action="/route-option" style="display:none">
+    <input type="hidden" name="src" value="{{ src }}">
+    <input type="hidden" name="dst" value="{{ dst }}">
+    <input type="hidden" name="mode" value="{{ mode }}">
+    <input type="hidden" name="route" id="route-form-route" value="">
+  </form>
+
+  <script>
+    function submitRoute(routeValue) {
+      document.getElementById('route-form-route').value = routeValue;
+      document.getElementById('route-form').submit();
+    }
+
+    function sortDfs(mode) {
+      const rows = Array.from(document.querySelectorAll('#dfs-tbody tr'));
+      rows.sort((a, b) => {
+        const idx = mode === 'price' ? 3 : 2;
+        const valA = parseFloat(a.cells[idx].textContent.replace(/[^0-9.]/g, ''));
+        const valB = parseFloat(b.cells[idx].textContent.replace(/[^0-9.]/g, ''));
+        return valA - valB;
+      });
+      const tbody = document.getElementById('dfs-tbody');
+      rows.forEach((row, i) => {
+        row.cells[0].textContent = i + 1;
+        tbody.appendChild(row);
+      });
+      document.getElementById('dfs-btn-dist').classList.toggle('active', mode === 'distance');
+      document.getElementById('dfs-btn-price').classList.toggle('active', mode === 'price');
+    }
+  </script>
 </body>
 </html>

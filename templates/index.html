@@ -26,7 +26,6 @@
       --brand-strong: #0c55a3;
       --accent: #f28a21;
       --line: #dce6f5;
-      --success-soft: #ebfbf2;
     }
 
     body {
@@ -74,29 +73,13 @@
       padding: 1rem;
     }
 
-    .mode-card {
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 1rem 1rem;
-      background: #fff;
-      transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-      min-height: 68px;
-      display: flex;
-      align-items: center;
-    }
-
-    .mode-card:hover {
-      border-color: #c7d8f2;
-      transform: translateY(-1px);
-      box-shadow: 0 10px 24px rgba(17, 45, 83, 0.09);
-    }
-
-    .mode-tabs {
+    .dashboard-tabs {
       display: grid;
       grid-template-columns: 1fr;
       gap: 0.75rem;
     }
 
+    .dashboard-tab,
     .mode-tab {
       width: 100%;
       text-align: left;
@@ -109,12 +92,14 @@
       transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
     }
 
+    .dashboard-tab:hover,
     .mode-tab:hover {
       border-color: #c7d8f2;
       transform: translateY(-1px);
       box-shadow: 0 10px 24px rgba(17, 45, 83, 0.09);
     }
 
+    .dashboard-tab.active,
     .mode-tab.active {
       background: #eaf3ff;
       border-color: #90b9ea;
@@ -122,7 +107,25 @@
       box-shadow: 0 10px 24px rgba(17, 45, 83, 0.09);
     }
 
+    .mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+
+    .dashboard-panel {
+      display: none;
+    }
+
+    .dashboard-panel.active {
+      display: block;
+    }
+
     @media (min-width: 768px) {
+      .dashboard-tabs {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
       .mode-tabs {
         grid-template-columns: repeat(3, 1fr);
       }
@@ -175,56 +178,106 @@
           <div class="card-body p-4 p-md-5">
             <p class="section-label">Flight Planner</p>
             <h1 class="hero-title h2">Build the best route in seconds</h1>
-            <p class="subtle mb-4">Search across your route network and optimize by distance, fare estimate, or stops.</p>
+            <p class="subtle mb-4">Search across your route network or switch to a Haversine proximity lookup.</p>
+            <div class="d-flex gap-2 mb-4">
+              <a href="/schedule" class="btn btn-sm btn-outline-primary">🕐 Flight Schedule</a>
+              <a href="/hubs" class="btn btn-sm btn-outline-primary">🌐 Hub Detector</a>
+            </div>
+            
+            <div class="block mb-4">
+              <p class="section-label mb-3">Search Type</p>
+              <div class="dashboard-tabs" role="tablist" aria-label="Dashboard mode">
+                <button type="button" class="dashboard-tab active" data-panel="route-panel" aria-pressed="true">Suggested Airport Routes</button>
+                <button type="button" class="dashboard-tab" data-panel="proximity-panel" aria-pressed="false">Nearby Airports (Haversine)</button>
+              </div>
+            </div>
 
-            <form method="post" action="/search" class="row g-4" id="route-form" novalidate>
-              <div class="col-12">
-                <div class="block">
-                  <p class="section-label mb-3">Route</p>
-                  <div class="row g-3">
-                    <div class="col-12 col-md-6">
-                      <label for="src" class="form-label fw-semibold">From</label>
-                      <select id="src" name="src" class="form-select" required>
-                        <option value="">Choose departure airport</option>
-                        {% for code, name in airports.items() %}
-                          <option value="{{ code }}">{{ code }} - {{ name }}</option>
-                        {% endfor %}
-                      </select>
+            <section id="route-panel" class="dashboard-panel active">
+              <form method="post" action="/search" class="row g-4" id="route-form" novalidate>
+                <input type="hidden" name="search_type" value="route">
+                <div class="col-12">
+                  <div class="block">
+                    <p class="section-label mb-3">Route</p>
+                    <div class="row g-3">
+                      <div class="col-12 col-md-6">
+                        <label for="route-src" class="form-label fw-semibold">From</label>
+                        <select id="route-src" name="src" class="form-select" required>
+                          <option value="">Choose departure airport</option>
+                          {% for code, name in airports.items() %}
+                            <option value="{{ code }}">{{ code }} - {{ name }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+
+                      <div class="col-12 col-md-6">
+                        <label for="route-dst" class="form-label fw-semibold">To</label>
+                        <select id="route-dst" name="dst" class="form-select" required>
+                          <option value="">Choose arrival airport</option>
+                          {% for code, name in airports.items() %}
+                            <option value="{{ code }}">{{ code }} - {{ name }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
                     </div>
+                    <p id="same-route-error" class="route-error mb-0">Departure and arrival airports must be different.</p>
+                  </div>
+                </div>
 
-                    <div class="col-12 col-md-6">
-                      <label for="dst" class="form-label fw-semibold">To</label>
-                      <select id="dst" name="dst" class="form-select" required>
-                        <option value="">Choose arrival airport</option>
-                        {% for code, name in airports.items() %}
-                          <option value="{{ code }}">{{ code }} - {{ name }}</option>
-                        {% endfor %}
-                      </select>
+                <div class="col-12">
+                  <div class="block">
+                    <p class="section-label mb-3">Optimization</p>
+                    <input type="hidden" name="mode" id="mode" value="distance">
+                    <div class="mode-tabs" role="tablist" aria-label="Optimization mode">
+                      <button type="button" class="mode-tab active" data-mode="distance" aria-pressed="true">Shortest distance</button>
+                      <button type="button" class="mode-tab" data-mode="price" aria-pressed="false">Cheapest price</button>
+                      <button type="button" class="mode-tab" data-mode="stops" aria-pressed="false">Fewest stops</button>
                     </div>
                   </div>
-                  <p id="same-route-error" class="route-error mb-0">Departure and arrival airports must be different.</p>
                 </div>
-              </div>
 
-              <div class="col-12">
-                <div class="block">
-                  <p class="section-label mb-3">Optimization</p>
-                  <input type="hidden" name="mode" id="mode" value="distance">
-                  <div class="mode-tabs" role="tablist" aria-label="Optimization mode">
-                    <button type="button" class="mode-tab active" data-mode="distance" aria-pressed="true">Shortest distance</button>
-                    <button type="button" class="mode-tab" data-mode="price" aria-pressed="false">Cheapest price</button>
-                    <button type="button" class="mode-tab" data-mode="stops" aria-pressed="false">Fewest stops</button>
+                <div class="col-12 d-grid d-md-flex justify-content-md-end">
+                  <button type="submit" class="btn btn-brand px-4 w-100 w-md-auto" id="route-submit-btn">
+                    <span class="submit-label">Find Route</span>
+                    <span class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true" id="route-submit-spinner"></span>
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <section id="proximity-panel" class="dashboard-panel">
+              <form method="post" action="/search" class="row g-4" id="proximity-form">
+                <input type="hidden" name="search_type" value="proximity">
+                <input type="hidden" name="mode" value="distance">
+                <div class="col-12">
+                  <div class="block">
+                    <p class="section-label mb-3">Origin</p>
+                    <label for="proximity-src" class="form-label fw-semibold">From</label>
+                    <select id="proximity-src" name="src" class="form-select" required>
+                      <option value="">Choose departure airport</option>
+                      {% for code, name in airports.items() %}
+                        <option value="{{ code }}">{{ code }} - {{ name }}</option>
+                      {% endfor %}
+                    </select>
                   </div>
                 </div>
-              </div>
 
-              <div class="col-12 d-grid d-md-flex justify-content-md-end">
-                <button type="submit" class="btn btn-brand px-4 w-100 w-md-auto" id="submit-btn">
-                  <span class="submit-label">Find Route</span>
-                  <span class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true" id="submit-spinner"></span>
-                </button>
-              </div>
-            </form>
+                <div class="col-12">
+                  <div class="block">
+                    <p class="section-label mb-3">Radius</p>
+                    <label for="radius_km" class="form-label fw-semibold">Search radius in kilometers</label>
+                    <input type="number" min="1" step="10" value="500" id="radius_km" name="radius_km" class="form-control" required>
+                    <p class="subtle mb-0 mt-2">Shows all airports within the selected radius on a dedicated Leaflet map.</p>
+                  </div>
+                </div>
+
+                <div class="col-12 d-grid d-md-flex justify-content-md-end">
+                  <button type="submit" class="btn btn-brand px-4 w-100 w-md-auto" id="proximity-submit-btn">
+                    <span class="submit-label">Find Nearby Airports</span>
+                    <span class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true" id="proximity-submit-spinner"></span>
+                  </button>
+                </div>
+              </form>
+            </section>
           </div>
         </div>
       </div>
@@ -232,34 +285,52 @@
   </main>
   <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
   <script>
-    const srcEl = document.getElementById("src");
-    const dstEl = document.getElementById("dst");
-    const formEl = document.getElementById("route-form");
-    const submitBtn = document.getElementById("submit-btn");
-    const submitSpinner = document.getElementById("submit-spinner");
-    const submitLabel = submitBtn.querySelector(".submit-label");
+    const routeSrcEl = document.getElementById("route-src");
+    const routeDstEl = document.getElementById("route-dst");
+    const routeFormEl = document.getElementById("route-form");
+    const routeSubmitBtn = document.getElementById("route-submit-btn");
+    const routeSubmitSpinner = document.getElementById("route-submit-spinner");
+    const routeSubmitLabel = routeSubmitBtn.querySelector(".submit-label");
     const sameRouteError = document.getElementById("same-route-error");
     const modeInput = document.getElementById("mode");
     const modeTabs = document.querySelectorAll(".mode-tab");
+    const dashboardTabs = document.querySelectorAll(".dashboard-tab");
+    const panels = document.querySelectorAll(".dashboard-panel");
+    const proximityFormEl = document.getElementById("proximity-form");
+    const proximitySubmitBtn = document.getElementById("proximity-submit-btn");
+    const proximitySubmitSpinner = document.getElementById("proximity-submit-spinner");
+    const proximitySubmitLabel = proximitySubmitBtn.querySelector(".submit-label");
 
     if (window.TomSelect) {
-      new TomSelect(srcEl, { create: false, sortField: { field: "text", direction: "asc" } });
-      new TomSelect(dstEl, { create: false, sortField: { field: "text", direction: "asc" } });
-    }
-
-    function valuesAreSame() {
-      return srcEl.value && dstEl.value && srcEl.value === dstEl.value;
+      new TomSelect(routeSrcEl, { create: false, sortField: { field: "text", direction: "asc" } });
+      new TomSelect(routeDstEl, { create: false, sortField: { field: "text", direction: "asc" } });
+      new TomSelect(document.getElementById("proximity-src"), { create: false, sortField: { field: "text", direction: "asc" } });
     }
 
     function updateRouteValidation() {
-      const invalid = valuesAreSame();
+      const invalid = routeSrcEl.value && routeDstEl.value && routeSrcEl.value === routeDstEl.value;
       sameRouteError.style.display = invalid ? "block" : "none";
-      srcEl.setCustomValidity(invalid ? "Please choose different airports." : "");
-      dstEl.setCustomValidity(invalid ? "Please choose different airports." : "");
+      routeSrcEl.setCustomValidity(invalid ? "Please choose different airports." : "");
+      routeDstEl.setCustomValidity(invalid ? "Please choose different airports." : "");
     }
 
-    srcEl.addEventListener("change", updateRouteValidation);
-    dstEl.addEventListener("change", updateRouteValidation);
+    routeSrcEl.addEventListener("change", updateRouteValidation);
+    routeDstEl.addEventListener("change", updateRouteValidation);
+
+    dashboardTabs.forEach((tab) => {
+      tab.addEventListener("click", function () {
+        const targetPanel = this.dataset.panel;
+        dashboardTabs.forEach((item) => {
+          const isActive = item === this;
+          item.classList.toggle("active", isActive);
+          item.setAttribute("aria-pressed", isActive ? "true" : "false");
+        });
+        panels.forEach((panel) => {
+          panel.classList.toggle("active", panel.id === targetPanel);
+        });
+      });
+    });
+
     modeTabs.forEach((tab) => {
       tab.addEventListener("click", function () {
         const selectedMode = this.dataset.mode;
@@ -272,16 +343,27 @@
       });
     });
 
-    formEl.addEventListener("submit", function (event) {
+    routeFormEl.addEventListener("submit", function (event) {
       updateRouteValidation();
-      if (!formEl.checkValidity()) {
+      if (!routeFormEl.checkValidity()) {
         event.preventDefault();
-        formEl.classList.add("was-validated");
+        routeFormEl.classList.add("was-validated");
         return;
       }
-      submitBtn.disabled = true;
-      submitSpinner.classList.remove("d-none");
-      submitLabel.textContent = "Finding route...";
+      routeSubmitBtn.disabled = true;
+      routeSubmitSpinner.classList.remove("d-none");
+      routeSubmitLabel.textContent = "Finding route...";
+    });
+
+    proximityFormEl.addEventListener("submit", function (event) {
+      if (!proximityFormEl.checkValidity()) {
+        event.preventDefault();
+        proximityFormEl.classList.add("was-validated");
+        return;
+      }
+      proximitySubmitBtn.disabled = true;
+      proximitySubmitSpinner.classList.remove("d-none");
+      proximitySubmitLabel.textContent = "Finding nearby airports...";
     });
   </script>
 </body>
