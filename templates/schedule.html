@@ -54,7 +54,14 @@
       <div class="panel mb-4">
         <div class="card-body p-4">
           <form method="get" action="/schedule" class="row g-3 align-items-end">
-            <div class="col-12 col-md-5">
+            <div class="col-12 col-md-3">
+              <label class="form-label fw-semibold">Trip Type</label>
+              <select name="trip_type" id="sched-trip-type" class="form-select">
+                <option value="oneway" {% if request.args.get("trip_type") != "return" %}selected{% endif %}>One-way</option>
+                <option value="return" {% if request.args.get("trip_type") == "return" %}selected{% endif %}>Return</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-4">
               <label class="form-label fw-semibold">From</label>
               <select name="src" id="src-select" class="form-select" required>
                 <option value="">Choose departure airport</option>
@@ -72,15 +79,24 @@
                 {% endfor %}
               </select>
             </div>
+            <div class="col-12 col-md-5">
+              <label class="form-label fw-semibold">Depart Date</label>
+              <input type="date" name="depart_date" id="sched-depart-date" class="form-control" value="{{ request.args.get('depart_date', '') }}" required>
+            </div>
+            <div class="col-12 col-md-5" id="sched-return-date-container" style="display: none;">
+              <label class="form-label fw-semibold">Return Date</label>
+              <input type="date" name="return_date" id="sched-return-date" class="form-control" value="{{ request.args.get('return_date', '') }}">
+            </div>
             <div class="col-12 col-md-2 d-grid">
-              <button type="submit" class="btn btn-brand">View Schedule</button>
+              <button type="submit" class="btn btn-brand">View</button>
             </div>
           </form>
         </div>
       </div>
 
-      {% if result and result.get("flights") %}
-        {% set flights = result.get("flights", []) %}
+      {% for result in [outbound_result, return_result] %}
+        {% if result and result.get("flights") %}
+          {% set flights = result.get("flights", []) %}
 
         <!-- Summary cards -->
         <div class="row g-3 mb-4">
@@ -166,9 +182,12 @@
           </div>
         </div>
 
-      {% elif result and result.get("error") %}
-        <div class="alert alert-warning">{{ result.error }} — try a different airport pair.</div>
-      {% elif src and dst %}
+        {% elif result and result.get("error") %}
+          <div class="alert alert-warning">{{ result.error }} — try a different airport pair.</div>
+        {% endif %}
+      {% endfor %}
+
+      {% if not outbound_result and src and dst %}
         <div class="alert alert-warning">No schedule available for this route. Try a different airport pair.</div>
       {% endif %}
 
@@ -181,6 +200,41 @@
   if (window.TomSelect) {
     new TomSelect(document.getElementById("src-select"), { create: false, sortField: { field: "text", direction: "asc" } });
     new TomSelect(document.getElementById("dst-select"), { create: false, sortField: { field: "text", direction: "asc" } });
+  }
+
+  const tripTypeEl = document.getElementById("sched-trip-type");
+  const returnDateContainer = document.getElementById("sched-return-date-container");
+  const returnDateEl = document.getElementById("sched-return-date");
+  const departDateEl = document.getElementById("sched-depart-date");
+
+  if (tripTypeEl) {
+    tripTypeEl.addEventListener("change", function() {
+      if (this.value === "return") {
+        returnDateContainer.style.display = "block";
+        returnDateEl.required = true;
+      } else {
+        returnDateContainer.style.display = "none";
+        returnDateEl.required = false;
+      }
+    });
+    tripTypeEl.dispatchEvent(new Event("change"));
+  }
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (departDateEl) {
+    if (!departDateEl.value) departDateEl.value = todayStr;
+    departDateEl.min = todayStr;
+    departDateEl.addEventListener("change", function() {
+      if (returnDateEl) {
+        returnDateEl.min = this.value;
+        if (returnDateEl.value && returnDateEl.value < this.value) {
+          returnDateEl.value = this.value;
+        }
+      }
+    });
+  }
+  if (returnDateEl) {
+    returnDateEl.min = departDateEl ? departDateEl.value : todayStr;
   }
 </script>
 </body>

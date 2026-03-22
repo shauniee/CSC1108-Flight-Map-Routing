@@ -1,6 +1,7 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from flask import Flask, render_template, request
+from BFS import BFS
 
 from route_service import RouteService
 import threading
@@ -27,6 +28,9 @@ def search():
     searchType = request.form.get("search_type", "route").strip()
     src = request.form.get("src", "").strip()
     dst = request.form.get("dst", "").strip()
+    tripType = request.form.get("trip_type", "oneway").strip()
+    departDate = request.form.get("depart_date", "").strip()
+    returnDate = request.form.get("return_date", "").strip()
     mode = request.form.get("mode", "distance").strip()
     radiusRaw = request.form.get("radius_km", "500").strip()
 
@@ -56,13 +60,48 @@ def search():
             result={"best": None, "routes": []},
         )
 
-    result = route_service.computeAlgorithmResults(src, dst, mode)
-    dfsResult = route_service.computeDfsResults(src, dst, mode, sort_by="distance")
+    def get_route_with_direct_fallback(source, destination, current_mode, date_str):
+        no_direct_found = False
+        final_mode = current_mode
+        if current_mode == "direct":
+            bfs_solver = BFS(route_service.weightedGraph.graph)
+            direct_route = bfs_solver.shortest_path(source, destination, "direct")
+            if direct_route and len(direct_route["route"]) == 2:
+                best = route_service.buildRouteResult(direct_route["route"], current_mode, depart_date_str=date_str)
+                if best:
+                    best["mode"] = current_mode
+                    res = {"best": best, "routes": []}
+                    return res, final_mode, no_direct_found
+            
+            final_mode = "stops"
+            no_direct_found = True
+        
+        res = route_service.computeAlgorithmResults(source, destination, final_mode, date_str)
+        return res, final_mode, no_direct_found
+
+    result, final_mode_outbound, no_direct = get_route_with_direct_fallback(src, dst, mode, departDate)
+    
+    dfsResult = route_service.computeDfsResults(src, dst, final_mode_outbound, sort_by="distance")
     result["dfs_routes"] = dfsResult.get("routes", [])
     result["dfs_timed_out"] = dfsResult.get("timed_out", False)
     result["dfs_sort_by"] = "distance"
-    return render_template("results.html", src=src, dst=dst, mode=mode, search_type=searchType, result=result)
+    result["trip_type"] = tripType
+    result["depart_date"] = departDate
 
+    return_result = None
+    return_no_direct = False
+    
+    if tripType == "return":
+        return_result, final_mode_return, return_no_direct = get_route_with_direct_fallback(dst, src, mode, returnDate)
+        
+        returnDfsResult = route_service.computeDfsResults(dst, src, final_mode_return, sort_by="distance")
+        return_result["dfs_routes"] = returnDfsResult.get("routes", [])
+        return_result["dfs_timed_out"] = returnDfsResult.get("timed_out", False)
+        return_result["dfs_sort_by"] = "distance"
+        return_result["trip_type"] = "return"
+        return_result["depart_date"] = returnDate
+
+    return render_template("results.html", src=src, dst=dst, mode=mode, search_type=searchType, result=result, return_result=return_result, no_direct=no_direct, return_no_direct=return_no_direct)
 
 @app.post("/route-option")
 def route_option():
@@ -140,15 +179,39 @@ def dfs_routes():
 def schedule():
     src = request.args.get("src", "").strip().upper()
     dst = request.args.get("dst", "").strip().upper()
-    result = {}
+    trip_type = request.args.get("trip_type", "oneway").strip()
+    depart_date_str = request.args.get("depart_date", "").strip()
+    return_date_str = request.args.get("return_date", "").strip()
+
+    from datetime import datetime
+    depart_date = None
+    if depart_date_str:
+        try:
+            depart_date = datetime.strptime(depart_date_str, "%Y-%m-%d")
+        except ValueError:
+            pass
+
+    return_date = None
+    if return_date_str:
+        try:
+            return_date = datetime.strptime(return_date_str, "%Y-%m-%d")
+        except ValueError:
+            pass
+
+    outbound_result = {}
+    return_result = {}
     if src and dst and src != dst:
-        result = route_service.get_flight_schedule(src, dst)
+        outbound_result = route_service.get_flight_schedule(src, dst, depart_date)
+        if trip_type == "return":
+            return_result = route_service.get_flight_schedule(dst, src, return_date)
     return render_template(
         "schedule.html",
         airports=route_service.airports,
         src=src,
         dst=dst,
-        result=result,
+        outbound_result=outbound_result,
+        return_result=return_result,
+        trip_type=trip_type,
     )
  
  
