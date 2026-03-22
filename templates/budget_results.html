@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multi-City Planner Trip Results</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+    crossorigin="anonymous"
+  >
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  >
+  <style>
+    :root {
+      --bg-start: #f4f8ff;
+      --bg-end: #fef8ee;
+      --surface: #ffffff;
+      --surface-soft: #f8fafd;
+      --ink: #15233b;
+      --muted: #5f6f89;
+      --brand: #0f6bcf;
+      --brand-strong: #0c55a3;
+      --accent: #f28a21;
+      --line: #dce6f5;
+      --warn-soft: #fff3dd;
+    }
+
+    body {
+      font-family: "Manrope", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, #cde4ff 0%, transparent 60%),
+        radial-gradient(1000px 400px at 95% 0%, #ffe8c7 0%, transparent 60%),
+        linear-gradient(160deg, var(--bg-start), var(--bg-end));
+      min-height: 100vh;
+    }
+
+    .page-title {
+      font-family: "Fraunces", serif;
+      letter-spacing: -0.01em;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: 0 20px 50px rgba(19, 38, 68, 0.1);
+      animation: rise 0.45s ease both;
+    }
+
+    .metric-card {
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1rem;
+      height: 100%;
+    }
+
+    .metric-label {
+      margin-bottom: 0.25rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+    }
+
+    .metric-value {
+      margin-bottom: 0;
+      font-weight: 800;
+      font-size: 1.12rem;
+      color: var(--brand-strong);
+      word-break: break-word;
+    }
+
+    .best-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border-radius: 999px;
+      padding: 0.3rem 0.7rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+      background: #e6f3ff;
+      color: #08519c;
+      border: 1px solid #c8e2ff;
+    }
+
+    .chip-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .route-chip {
+      background: #fff;
+      border: 1px solid #ccdbef;
+      border-radius: 999px;
+      padding: 0.35rem 0.7rem;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: #224776;
+    }
+
+    .route-arrow {
+      color: var(--accent);
+      font-weight: 800;
+      align-self: center;
+    }
+
+    .map-shell {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      background: #edf4ff;
+    }
+
+    #budget-map {
+      width: 100%;
+      height: 430px;
+    }
+
+    .table thead th {
+      font-size: 0.78rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #4f607d;
+    }
+
+    .no-route {
+      background: var(--warn-soft);
+      border: 1px solid #ffd597;
+      color: #6b4708;
+      border-radius: 16px;
+      padding: 1rem;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  {% set best = result.get("best_route") if result else none %}
+
+  <main class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-12 col-xl-11">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+          <div>
+            <h1 class="page-title h2 mb-1">Trip Budget Check</h1>
+            <p class="mb-0 text-secondary">Checks whether your chosen trip size fits inside the budget.</p>
+          </div>
+          <div>
+            <span class="best-badge">Target Cities: {{ result.get("target_cities") }}</span>
+          </div>
+        </div>
+
+        <div class="panel mb-4">
+          <div class="card-body p-4 p-md-5">
+            {% if best %}
+              <div class="row g-3 mb-4">
+                <div class="col-6 col-lg-3">
+                  <div class="metric-card">
+                    <p class="metric-label">Starting Airport</p>
+                    <p class="metric-value">{{ src }}</p>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="metric-card">
+                    <p class="metric-label">Budget</p>
+                    <p class="metric-value">${{ result.get("budget") }}</p>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="metric-card">
+                    <p class="metric-label">Cities Visited</p>
+                    <p class="metric-value">{{ best.get("cities_visited") }}</p>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="metric-card">
+                    <p class="metric-label">Remaining Budget</p>
+                    <p class="metric-value">${{ best.get("remaining_budget") }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mb-4">
+                <p class="metric-label">Best Route</p>
+                <div class="chip-wrap">
+                  {% for code in best.get("route", []) %}
+                    <span class="route-chip">{{ code }}</span>
+                    {% if not loop.last %}
+                      <span class="route-arrow">&rarr;</span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+
+              <div class="map-shell mb-4">
+                <div id="budget-map"></div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th scope="col">Leg</th>
+                      <th scope="col">From</th>
+                      <th scope="col">To</th>
+                      <th scope="col">Distance</th>
+                      <th scope="col">Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for leg in best.get("legs", []) %}
+                      <tr>
+                        <td>{{ leg.get("leg_number") }}</td>
+                        <td>{{ leg.get("from") }}</td>
+                        <td>{{ leg.get("to") }}</td>
+                        <td>{{ leg.get("distance_km") }} km</td>
+                        <td>{{ leg.get("duration_label") }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <div class="no-route">
+                <p class="mb-2 fw-semibold">No round trip found.</p>
+                <p class="mb-0">Try increasing the budget or lowering the target number of cities.</p>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <a href="/" class="btn btn-outline-primary px-4">Back to Dashboard</a>
+      </div>
+    </div>
+  </main>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+    const points = {{ best.get("map_points", []) | tojson if best else "[]" }};
+    const budgetMap = document.getElementById("budget-map");
+
+    if (budgetMap && window.L && points.length >= 2) {
+      const validPoints = points.filter((point) => typeof point.lat === "number" && typeof point.lon === "number");
+
+      if (validPoints.length >= 2) {
+        const map = L.map("budget-map", {
+          zoomControl: true,
+          worldCopyJump: true
+        });
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 7,
+          attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(map);
+
+        const latLngs = validPoints.map((point) => [point.lat, point.lon]);
+
+        L.polyline(latLngs, {
+          color: "#0f6bcf",
+          weight: 4,
+          opacity: 0.9
+        }).addTo(map);
+
+        validPoints.forEach((point, index) => {
+          const isOrigin = index === 0 || index === validPoints.length - 1;
+          const marker = L.circleMarker([point.lat, point.lon], {
+            radius: isOrigin ? 8 : 6,
+            color: isOrigin ? "#8a4b00" : "#0b4f99",
+            weight: 2,
+            fillColor: isOrigin ? "#f28a21" : "#0f6bcf",
+            fillOpacity: 0.95
+          }).addTo(map);
+
+          marker.bindPopup(`<strong>${point.code}</strong><br>${point.label}`);
+        });
+
+        map.fitBounds(latLngs, { padding: [30, 30] });
+      }
+    }
+  </script>
+</body>
+</html>

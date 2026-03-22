@@ -185,6 +185,7 @@
               <div class="dashboard-tabs" role="tablist" aria-label="Dashboard mode">
                 <button type="button" class="dashboard-tab active" data-panel="route-panel" aria-pressed="true">Suggested Airport Routes</button>
                 <button type="button" class="dashboard-tab" data-panel="proximity-panel" aria-pressed="false">Nearby Airports (Haversine)</button>
+                <button type="button" class="dashboard-tab" data-panel="budget-panel" aria-pressed="false">Multi-City Trip Planner</button>
               </div>
             </div>
 
@@ -274,6 +275,51 @@
                 </div>
               </form>
             </section>
+
+          <section id="budget-panel" class="dashboard-panel">
+                <form method="post" action="/search" class="row g-4" id="budget-form">
+                  <input type="hidden" name="search_type" value="budget_loop">
+
+                  <div class="col-12">
+                    <div class="block">
+                      <p class="section-label mb-3">Starting Airport</p>
+                      <label for="budget-src" class="form-label fw-semibold">From</label>
+                      <select id="budget-src" name="src" class="form-select" required>
+                        <option value="">Choose departure airport</option>
+                        {% for code, name in airports.items() %}
+                          <option value="{{ code }}">{{ code }} - {{ name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="col-12">
+                    <div class="block">
+                      <p class="section-label mb-3">Budget</p>
+                      <label for="budget" class="form-label fw-semibold">Budget in SGD</label>
+                      <input type="number" min="1" step="1" value="1000" id="budget" name="budget" class="form-control" required>
+                    </div>
+                  </div>
+
+                  <div class="col-12">
+                    <div class="block">
+                      <p class="section-label mb-3">Trip Size</p>
+                      <label for="target_cities" class="form-label fw-semibold">How many do you want to visit?</label>
+                      <input type="number" min="1" step="1" value="2" id="target_cities" name="target_cities" class="form-control" required>
+                    </div>
+                  </div>
+
+
+                  <div class="col-12 d-grid d-md-flex justify-content-md-end">
+                    <button type="submit" class="btn btn-brand px-4 w-100 w-md-auto" id="budget-submit-btn">
+                      <span class="submit-label">Find Best Round Trip</span>
+                      <span class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true" id="budget-submit-spinner"></span>
+                    </button>
+                  </div>
+
+                </form>
+          </section>
+
           </div>
         </div>
       </div>
@@ -296,11 +342,15 @@
     const proximitySubmitBtn = document.getElementById("proximity-submit-btn");
     const proximitySubmitSpinner = document.getElementById("proximity-submit-spinner");
     const proximitySubmitLabel = proximitySubmitBtn.querySelector(".submit-label");
-
+    const budgetFormEl = document.getElementById("budget-form");
+    const budgetSubmitBtn = document.getElementById("budget-submit-btn");
+    const budgetSubmitSpinner = document.getElementById("budget-submit-spinner");
+    const budgetSubmitLabel = budgetSubmitBtn.querySelector(".submit-label");
     if (window.TomSelect) {
       new TomSelect(routeSrcEl, { create: false, sortField: { field: "text", direction: "asc" } });
       new TomSelect(routeDstEl, { create: false, sortField: { field: "text", direction: "asc" } });
       new TomSelect(document.getElementById("proximity-src"), { create: false, sortField: { field: "text", direction: "asc" } });
+      new TomSelect(document.getElementById("budget-src"), {create: false, sortField: {field : "text", direction: "asc"}});
     }
 
     function updateRouteValidation() {
@@ -326,6 +376,18 @@
         });
       });
     });
+
+    budgetFormEl.addEventListener("submit", function (event) {
+      if (!budgetFormEl.checkValidity()) {
+        event.preventDefault();
+        budgetFormEl.classList.add("was-validated");
+        return;
+      }
+      budgetSubmitBtn.disabled = true;
+      budgetSubmitSpinner.classList.remove("d-none");
+      budgetSubmitLabel.textContent = "Finding round trip...";
+    });
+
 
     modeTabs.forEach((tab) => {
       tab.addEventListener("click", function () {
