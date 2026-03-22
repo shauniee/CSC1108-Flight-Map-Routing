@@ -1,127 +1,196 @@
 import json
 
+
 class PriceCalculation:
-    def __init__(self, airlineClassificationFile='airline_classifications.json'):
-        self.baseRate = 0.08
-        self.fuelRate = 0.02
+    def __init__(self, airlineClassificationFile="airline_classifications.json"):
+        self.baseRate = 0.10
+        self.fuelRate = 0.05
 
         self.majorHubs = {
-            # Middle East
             "DOH": 0.70,
             "DXB": 0.70,
             "IST": 0.75,
             "AUH": 0.8,
-
-            # Europe
             "AMS": 0.8,
             "FRA": 0.8,
-
-            # APAC
             "KUL": 0.75,
             "HKG": 0.75,
-            
-            # North America
             "ATL": 0.75,
             "ORD": 0.8,
         }
-        
-        # Load airline classifications
+
         self.budgetAirlines = {}
         self.premiumAirlines = {}
+        self.budgetAirlineNames = {}
+        self.premiumAirlineNames = {}
         self.loadAirlineClassifications(airlineClassificationFile)
-    
+
     def loadAirlineClassifications(self, classificationFile):
         try:
-            with open(classificationFile, 'r') as f:
+            with open(classificationFile, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            
-            # Convert lists to dictionaries for easy lookup
+
             self.budgetAirlines = {
-                airline['iata']: airline['name'] 
-                for airline in data.get('budget_airlines', [])
+                airline["iata"]: airline["name"]
+                for airline in data.get("budget_airlines", [])
             }
-            
+            self.budgetAirlineNames = {
+                airline["name"].strip().lower(): airline["iata"]
+                for airline in data.get("budget_airlines", [])
+                if airline.get("name")
+            }
+
             self.premiumAirlines = {
-                airline['iata']: airline['name'] 
-                for airline in data.get('premium_airlines', [])
+                airline["iata"]: airline["name"]
+                for airline in data.get("premium_airlines", [])
             }
-            
-            print(f"✓ Loaded {len(self.budgetAirlines)} budget airlines and {len(self.premiumAirlines)} premium airlines")
+            self.premiumAirlineNames = {
+                airline["name"].strip().lower(): airline["iata"]
+                for airline in data.get("premium_airlines", [])
+                if airline.get("name")
+            }
+
+            print(
+                f"Loaded {len(self.budgetAirlines)} budget airlines and "
+                f"{len(self.premiumAirlines)} premium airlines"
+            )
 
         except Exception as e:
             print(f"Error loading classification file: {e}")
-            # Set empty dictionaries if error
             self.budgetAirlines = {}
             self.premiumAirlines = {}
-    
-    def calculatePrice(self, fromAirport, toAirport, distance, carriers=None, directFlight=False, connectingAirport=None):
+            self.budgetAirlineNames = {}
+            self.premiumAirlineNames = {}
+
+    def _normalizeCarrier(self, carrier):
+        if not isinstance(carrier, str):
+            return ""
+        return carrier.strip()
+
+    def _resolveCarrierType(self, carrier):
+        carrier = self._normalizeCarrier(carrier)
+        if not carrier:
+            return "Standard"
+
+        carrier_key = carrier.upper()
+        carrier_name = carrier.lower()
+
+        if carrier_key in self.premiumAirlines or carrier_name in self.premiumAirlineNames:
+            return "Premium"
+        if carrier_key in self.budgetAirlines or carrier_name in self.budgetAirlineNames:
+            return "Budget"
+        return "Standard"
+
+    def getRateAdjustmentLabel(self, airlineType):
+        if airlineType == "Premium":
+            return "+20%"
+        if airlineType == "Budget":
+            return "-20%"
+        return "0%"
+
+    def applyAirlineTypeFactor(self, price, airlineType):
+        if airlineType == "Premium":
+            return price * 1.2
+        if airlineType == "Budget":
+            return price * 0.8
+        return price
+
+    def calculateBaseSegmentPrice(self, distance, directFlight=False, connectingAirport=None):
         basePrice = distance * self.baseRate
         fuelPrice = distance * self.fuelRate
         price = basePrice + fuelPrice
 
-        # Direct flight premium surcharge
         if directFlight:
             price *= 1.1
 
-        # Discount for connecting via major hubs
         if connectingAirport in self.majorHubs:
-            discountRate = self.majorHubs[connectingAirport]
-            price *= discountRate
-        # Discount for transit flights (Non-major hubs)
+            price *= self.majorHubs[connectingAirport]
         elif connectingAirport is not None:
-            discountRate = 0.9
-            price *= discountRate
+            price *= 0.9
 
-        # Apply airline factor based on carrier type
+        return {
+            "base": round(basePrice, 2),
+            "fuel": round(fuelPrice, 2),
+            "pre_airline_total": round(price, 2),
+        }
+
+    def calculatePrice(self, fromAirport, toAirport, distance, carriers=None, directFlight=False, connectingAirport=None):
+        base_info = self.calculateBaseSegmentPrice(
+            distance,
+            directFlight=directFlight,
+            connectingAirport=connectingAirport,
+        )
+        price = base_info["pre_airline_total"]
+
         if carriers:
             price, airlineType = self.applyAirlineFactor(price, carriers)
         else:
-            airlineType = 'Standard'
+            airlineType = "Standard"
 
         return {
-            'price': round(price, 2),
-            'breakdown': {
-                'base': round(basePrice, 2),
-                'fuel': round(fuelPrice, 2),
-                'total': round(price, 2)
+            "price": round(price, 2),
+            "breakdown": {
+                "base": base_info["base"],
+                "fuel": base_info["fuel"],
+                "total": round(price, 2),
             },
-            'airlineInfo': {
-                'type': airlineType,
-                'carriers': carriers if carriers else []
-            }
+            "airlineInfo": {
+                "type": airlineType,
+                "carriers": carriers if carriers else [],
+            },
         }
-    
+
     def applyAirlineFactor(self, price, carriers):
         if not carriers:
-            return price, 'Standard'
-        
-        # Check if any carrier is premium (premium takes precedence for pricing)
+            return price, "Standard"
+
         for carrier in carriers:
-            if carrier in self.premiumAirlines:
-                adjustedPrice = price * 1.2
-                return adjustedPrice, 'Premium'
-        
-        # Check if any carrier is budget
+            if self._resolveCarrierType(carrier) == "Budget":
+                return price * 0.8, "Budget"
+
         for carrier in carriers:
-            if carrier in self.budgetAirlines:
-                adjustedPrice = price * 0.8
-                return adjustedPrice, 'Budget'
-        
-        # Standard airline type - no adjustment
-        return price, 'Standard'
-    
+            if self._resolveCarrierType(carrier) == "Premium":
+                return price * 1.2, "Premium"
+
+        return price, "Standard"
+
+    def getCarrierPriceOptions(self, distance, carriers=None, directFlight=False, connectingAirport=None):
+        base_info = self.calculateBaseSegmentPrice(
+            distance,
+            directFlight=directFlight,
+            connectingAirport=connectingAirport,
+        )
+        base_price = base_info["pre_airline_total"]
+        options = []
+
+        for carrier in carriers or []:
+            carrier_name = self.getAirlineName(carrier)
+            airline_type = self.getAirlineType(carrier)
+            adjusted_price = round(self.applyAirlineTypeFactor(base_price, airline_type), 2)
+            options.append(
+                {
+                    "carrier": carrier_name,
+                    "type": airline_type,
+                    "rate_adjustment": self.getRateAdjustmentLabel(airline_type),
+                    "price": adjusted_price,
+                }
+            )
+
+        options.sort(key=lambda item: (item["price"], item["carrier"]))
+        return options
+
     def getAirlineName(self, carrierIata):
-        if carrierIata in self.premiumAirlines:
-            return self.premiumAirlines[carrierIata]
-        elif carrierIata in self.budgetAirlines:
-            return self.budgetAirlines[carrierIata]
-        else:
-            return f"Standard Airline ({carrierIata})"
-    
+        carrier = self._normalizeCarrier(carrierIata)
+        carrier_key = carrier.upper()
+        carrier_name = carrier.lower()
+
+        if carrier_key in self.premiumAirlines:
+            return self.premiumAirlines[carrier_key]
+        if carrier_key in self.budgetAirlines:
+            return self.budgetAirlines[carrier_key]
+        if carrier_name in self.premiumAirlineNames or carrier_name in self.budgetAirlineNames:
+            return carrier
+        return carrier or "Standard Airline"
+
     def getAirlineType(self, carrierIata):
-        if carrierIata in self.premiumAirlines:
-            return 'Premium'
-        elif carrierIata in self.budgetAirlines:
-            return 'Budget'
-        else:
-            return 'Standard'
+        return self._resolveCarrierType(carrierIata)

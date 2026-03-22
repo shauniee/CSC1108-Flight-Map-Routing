@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "AirlineData"))
-from pricing import PriceCalculation
+from AirlineData.pricing import PriceCalculation
 
 
 class FlightSchedule:

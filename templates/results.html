@@ -32,6 +32,12 @@
       --accent: #f28a21;
       --line: #dce6f5;
       --warn-soft: #fff3dd;
+      --premium-bg: #fff8e7;
+      --premium-border: #f1c40f;
+      --budget-bg: #e8f8f0;
+      --budget-border: #2ecc71;
+      --standard-bg: #eef6ff;
+      --standard-border: #3498db;
     }
 
     body {
@@ -181,6 +187,134 @@
       fill: #0b4f99;
     }
 
+    /* Enhanced Table Styles */
+    .leg-breakdown {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      font-size: 0.9rem;
+    }
+
+    .leg-breakdown th,
+    .leg-breakdown td {
+      border: 1px solid var(--line);
+      padding: 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .leg-breakdown th {
+      background-color: #f8fafd;
+      font-weight: 800;
+      font-size: 0.78rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #4f607d;
+    }
+
+    .leg-breakdown tr:hover {
+      background-color: #fefefe;
+    }
+
+    .price-cell {
+      font-weight: 700;
+      color: #2c3e50;
+      background-color: #fef8ee;
+    }
+
+    .price-breakdown-cell small {
+      font-size: 0.8em;
+      color: #5f6f89;
+      display: block;
+      line-height: 1.4;
+    }
+
+    /* Airline Type Badges */
+    .premium-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: var(--premium-bg);
+      border: 1px solid var(--premium-border);
+      color: #b37b00;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .budget-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: var(--budget-bg);
+      border: 1px solid var(--budget-border);
+      color: #1f8a4c;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .standard-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: var(--standard-bg);
+      border: 1px solid var(--standard-border);
+      color: #1a6bb0;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .total-row {
+      background-color: #f0f4fa;
+      font-weight: 800;
+    }
+
+    .total-row td {
+      border-top: 2px solid var(--brand);
+      font-size: 1rem;
+    }
+
+    .price-summary {
+      background: linear-gradient(135deg, #f8fafd 0%, #ffffff 100%);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1rem 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .price-summary h4 {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .price-summary ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .price-summary li {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .price-summary li:last-child {
+      border-bottom: none;
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: var(--brand-strong);
+    }
+
     .table thead th {
       font-size: 0.78rem;
       letter-spacing: 0.05em;
@@ -242,6 +376,7 @@
     {% if current_result %}
       {% set current_src = dst if loop.index == 2 else src %}
       {% set current_dst = src if loop.index == 2 else dst %}
+      {% set selection_target = 'return' if loop.index == 2 else 'outbound' %}
       <div class="mb-5">
       {% if loop.index == 2 %}
         <hr class="my-5" style="border-top: 3px dashed #ccdbef;">
@@ -296,7 +431,7 @@
                 {% for airport in best_route %}
                   <span class="route-chip">{{ airport }}</span>
                   {% if not loop.last %}
-                    <span class="route-arrow">-></span>
+                    <span class="route-arrow">→</span>
                   {% endif %}
                 {% endfor %}
               </div>
@@ -310,8 +445,14 @@
                 </div>
                 <div class="col-6 col-lg-3">
                   <div class="metric-card">
-                    <p class="metric-label">Price</p>
-                    <p class="metric-value">${{ best.get("price", "N/A") }}</p>
+                    <p class="metric-label">
+                      {% if best.get("round_trip_discount_pct") %}
+                        Round-Trip Price ({{ best.get("round_trip_discount_pct") }}% Off)
+                      {% else %}
+                        Price
+                      {% endif %}
+                    </p>
+                    <p class="metric-value" id="top-price-display">{{ best.get("price_display", "$%.2f"|format(best.get("price", 0))) }}</p>
                   </div>
                 </div>
                 <div class="col-6 col-lg-3">
@@ -370,33 +511,195 @@
                 <div id="route-map-{{ loop.index }}" class="map-container mb-4"></div>
               </div>
 
-              <h3 class="h6 mb-3">Leg Breakdown</h3>
-              <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                  <thead>
-                    <tr>
-                      <th scope="col">Leg</th>
-                      <th scope="col">From</th>
-                      <th scope="col">To</th>
-                      <th scope="col">Distance</th>
-                      <th scope="col">Duration</th>
-                      <th scope="col">Carrier</th>
+              {% set show_combined_round_trip = loop.index == 1 and return_result and best.get("round_trip_discount_pct") %}
+              {% if loop.index == 1 or not return_result %}
+              <!-- Enhanced Detailed Leg Breakdown with Pricing -->
+              <h3 class="h5 mt-4 mb-3">Flight Segments & Pricing</h3>
+              {% set inbound_best = return_result.get("best") if show_combined_round_trip and return_result else none %}
+              {% set outbound_segment_prices = best.get("segments_prices", []) %}
+              {% set inbound_segment_prices = inbound_best.get("segments_prices", []) if inbound_best else [] %}
+              <table class="leg-breakdown">
+                <thead>
+                  <tr>
+                    <th>Leg</th>
+                    {% if show_combined_round_trip %}
+                    <th>Trip</th>
+                    {% endif %}
+                    <th>Route</th>
+                    <th>Distance</th>
+                    <th>Duration</th>
+                    <th>Airline(s)</th>
+                    <th>Airline Type</th>
+                    <th>Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% set segment_prices = outbound_segment_prices %}
+                  {% for leg in best.get("legs", []) %}
+                  {% set segment_price = segment_prices[loop.index0] if loop.index0 < segment_prices|length else none %}
+                  
+                  <tr class="segment-row" data-trip="{{ 'Outgoing' if show_combined_round_trip else 'One-way' }}">
+                    <td><strong>#{{ leg.leg_number }}</strong></td>
+                    {% if show_combined_round_trip %}
+                    <td><strong>Outgoing</strong></td>
+                    {% endif %}
+                    <td>{{ leg.from }} → {{ leg.to }}</td>
+                    <td>{{ "%.1f"|format(leg.distance_km) }} km</td>
+                    <td>{{ leg.duration_label }}</td>
+                    <td>
+                      {% if leg.get("carrier_details") %}
+                        {% for carrier in leg.get("carrier_details", []) %}
+                          <div>
+                            {{ carrier.name }}
+                            <small class="d-block text-secondary">{{ carrier.type }} ({{ carrier.rate_adjustment }})</small>
+                          </div>
+                        {% endfor %}
+                        {% if segment_price and segment_price.get("carrier_price_options") and segment_price.get("carrier_price_options")|length > 1 %}
+                          <label class="d-block mt-2 text-secondary" style="font-size:0.75rem;">Choose airline</label>
+                          <select class="form-select form-select-sm carrier-select"
+                            data-default-price="{{ segment_price.price }}"
+                            style="max-width: 220px;">
+                            {% for option in segment_price.get("carrier_price_options", []) %}
+                              <option
+                                value="{{ option.price }}"
+                                data-type="{{ option.type }}"
+                                data-adjustment="{{ option.rate_adjustment }}"
+                                {% if option.carrier == segment_price.get("selected_carrier") %}selected{% endif %}>
+                                {{ option.carrier }} - {{ option.type }} ({{ option.rate_adjustment }})
+                              </option>
+                            {% endfor %}
+                          </select>
+                        {% endif %}
+                      {% else %}
+                        {% for carrier in leg.carrier_names %}
+                          {{ carrier }}{% if not loop.last %}<br>{% endif %}
+                        {% endfor %}
+                      {% endif %}
+                    </td>
+                    <td class="airline-type-cell" data-type="{{ leg.airline_type }}" data-adjustment="{{ leg.get('airline_rate_adjustment', '0%') }}">
+                      {% if leg.airline_type == 'Premium' %}
+                        <span class="premium-badge airline-type-badge">Premium</span>
+                      {% elif leg.airline_type == 'Budget' %}
+                        <span class="budget-badge airline-type-badge">Budget</span>
+                      {% else %}
+                        <span class="standard-badge airline-type-badge">Standard</span>
+                      {% endif %}
+                      <small class="d-block text-secondary mt-1 airline-adjustment">{{ leg.get("airline_rate_adjustment", "0%") }}</small>
+                    </td>
+                    <td class="price-cell segment-price-cell" data-price="{{ segment_price.price if segment_price else 0 }}">
+                      {% if best.get("hide_price_details") %}
+                        <strong>-</strong>
+                      {% elif segment_price %}
+                        <strong>${{ "%.2f"|format(segment_price.price) }}</strong>
+                      {% else %}
+                        N/A
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                  {% if inbound_best %}
+                    {% for leg in inbound_best.get("legs", []) %}
+                    {% set segment_price = inbound_segment_prices[loop.index0] if loop.index0 < inbound_segment_prices|length else none %}
+                    <tr class="segment-row" data-trip="Incoming">
+                      <td><strong>#{{ best.get("legs", [])|length + loop.index }}</strong></td>
+                      <td><strong>Incoming</strong></td>
+                      <td>{{ leg.from }} â†’ {{ leg.to }}</td>
+                      <td>{{ "%.1f"|format(leg.distance_km) }} km</td>
+                      <td>{{ leg.duration_label }}</td>
+                      <td>
+                        {% if leg.get("carrier_details") %}
+                          {% for carrier in leg.get("carrier_details", []) %}
+                            <div>
+                              {{ carrier.name }}
+                              <small class="d-block text-secondary">{{ carrier.type }} ({{ carrier.rate_adjustment }})</small>
+                            </div>
+                          {% endfor %}
+                          {% if segment_price and segment_price.get("carrier_price_options") and segment_price.get("carrier_price_options")|length > 1 %}
+                            <label class="d-block mt-2 text-secondary" style="font-size:0.75rem;">Choose airline</label>
+                            <select class="form-select form-select-sm carrier-select"
+                              data-default-price="{{ segment_price.price }}"
+                              style="max-width: 220px;">
+                              {% for option in segment_price.get("carrier_price_options", []) %}
+                                <option
+                                  value="{{ option.price }}"
+                                  data-type="{{ option.type }}"
+                                  data-adjustment="{{ option.rate_adjustment }}"
+                                  {% if option.carrier == segment_price.get("selected_carrier") %}selected{% endif %}>
+                                  {{ option.carrier }} - {{ option.type }} ({{ option.rate_adjustment }})
+                                </option>
+                              {% endfor %}
+                            </select>
+                          {% endif %}
+                        {% else %}
+                          {% for carrier in leg.carrier_names %}
+                            {{ carrier }}{% if not loop.last %}<br>{% endif %}
+                          {% endfor %}
+                        {% endif %}
+                      </td>
+                      <td class="airline-type-cell" data-type="{{ leg.airline_type }}" data-adjustment="{{ leg.get('airline_rate_adjustment', '0%') }}">
+                        {% if leg.airline_type == 'Premium' %}
+                          <span class="premium-badge airline-type-badge">Premium</span>
+                        {% elif leg.airline_type == 'Budget' %}
+                          <span class="budget-badge airline-type-badge">Budget</span>
+                        {% else %}
+                          <span class="standard-badge airline-type-badge">Standard</span>
+                        {% endif %}
+                        <small class="d-block text-secondary mt-1 airline-adjustment">{{ leg.get("airline_rate_adjustment", "0%") }}</small>
+                      </td>
+                      <td class="price-cell segment-price-cell" data-price="{{ segment_price.price if segment_price else 0 }}">
+                        {% if segment_price %}
+                          <strong>${{ "%.2f"|format(segment_price.price) }}</strong>
+                        {% else %}
+                          N/A
+                        {% endif %}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {% for leg in best.get("legs", []) %}
-                      <tr>
-                        <td>#{{ leg.get("leg_number") }}</td>
-                        <td>{{ leg.get("from") }}</td>
-                        <td>{{ leg.get("to") }}</td>
-                        <td>{{ leg.get("distance_km") }} km</td>
-                        <td>{{ leg.get("duration_label") }}</td>
-                        <td>{{ ", ".join(leg.get("carrier_names", [])) }}</td>
-                      </tr>
                     {% endfor %}
-                  </tbody>
-                </table>
+                  {% endif %}
+                </tbody>
+                <tfoot>
+                  {% if show_combined_round_trip %}
+                  <tr class="total-row">
+                    <td colspan="7"><strong>Outgoing Total</strong></td>
+                    <td><strong id="outgoing-total">${{ "%.2f"|format(best.get("outbound_price_total", 0)) }}</strong></td>
+                  </tr>
+                  <tr class="total-row">
+                    <td colspan="7"><strong>Incoming Total</strong></td>
+                    <td><strong id="incoming-total">${{ "%.2f"|format(best.get("inbound_price_total", 0)) }}</strong></td>
+                  </tr>
+                  <tr class="total-row">
+                    <td colspan="7"><strong>Return Discount ({{ best.get("round_trip_discount_pct") }}%)</strong></td>
+                    <td><strong id="discount-total">- ${{ "%.2f"|format(best.get("round_trip_discount_amount", 0)) }}</strong></td>
+                  </tr>
+                  {% endif %}
+                  <tr class="total-row">
+                    <td colspan="{{ 7 if show_combined_round_trip else 6 }}">
+                      <strong>
+                        {% if best.get("round_trip_discount_pct") %}
+                          Round-Trip Total ({{ best.get("round_trip_discount_pct") }}% Off)
+                        {% else %}
+                          Total Price
+                        {% endif %}
+                      </strong>
+                    </td>
+                    <td><strong id="grand-total">{{ best.get("price_display", "$%.2f"|format(best.get("price", 0))) }}</strong></td>
+                  </tr>
+                </tfoot>
+              </table>
+              {% endif %}
+
+              <!-- Airline Statistics Summary -->
+              {% if best.get("airline_stats") and (loop.index == 1 or not return_result) %}
+              <div class="price-summary">
+                <h4>Airline Type Distribution</h4>
+                <ul>
+                  <li><span>Premium Airlines:</span> <strong id="airline-count-premium">{{ best.airline_stats.Premium }}</strong> segment(s)</li>
+                  <li><span>Budget Airlines:</span> <strong id="airline-count-budget">{{ best.airline_stats.Budget }}</strong> segment(s)</li>
+                  <li><span>Standard Airlines:</span> <strong id="airline-count-standard">{{ best.airline_stats.Standard }}</strong> segment(s)</li>
+                </ul>
               </div>
+              {% endif %}
+
             {% else %}
               <div class="no-route">
                 <p class="mb-2 fw-semibold">No route found.</p>
@@ -419,28 +722,28 @@
                       <th scope="col">Distance</th>
                       <th scope="col">Price</th>
                       <th scope="col">Stops</th>
-                      <th scope="col">Open</th>
+                      <th scope="col">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for item in routes %}
                       {% set route = item.get("route", []) %}
                       <tr>
-                        <td>{{ loop.index }}</td>
+                        <td><strong>#{{ loop.index }}</strong></td>
                         <td>
                           {% if route %}
-                            <span class="badge text-bg-light border">{{ " -> ".join(route) }}</span>
+                            <span class="badge text-bg-light border">{{ " → ".join(route) }}</span>
                           {% else %}
                             N/A
                           {% endif %}
                         </td>
                         <td>{{ item.get("distance", "N/A") }} km</td>
-                        <td>${{ item.get("price", "N/A") }}</td>
+                        <td><strong>{{ item.get("price_display", "$%.2f"|format(item.get("price", 0))) }}</strong></td>
                         <td>{{ item.get("stops", "N/A") }}</td>
                         <td>
                           {% if route %}
                             <button type="button" class="route-link-btn"
-                              onclick="submitRoute('{{ route | join(',') }}')">View Route</button>
+                              onclick="submitRoute('{{ route | join(',') }}', '{{ selection_target }}')">View Route</button>
                           {% else %}
                             -
                           {% endif %}
@@ -460,7 +763,7 @@
               <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
                 <div>
                    <h2 class="h5 mb-1">All Possible Routes (DFS)</h2>
-                   <p class="mb-0 text-secondary" style="font-size:.85rem">Max 3 Stops &nbsp;.&nbsp; Up to 25 routes</p>
+                   <p class="mb-0 text-secondary" style="font-size:.85rem">Max 3 Stops &nbsp;•&nbsp; Up to 25 routes</p>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                   {% if dfs_timed_out %}
@@ -481,28 +784,28 @@
                       <th scope="col">Distance</th>
                       <th scope="col">Price</th>
                       <th scope="col">Stops</th>
-                      <th scope="col">Open</th>
+                      <th scope="col">Action</th>
                     </tr>
                   </thead>
                   <tbody id="dfs-tbody">
                     {% for item in dfs_routes %}
                       {% set route = item.get("route", []) %}
                       <tr>
-                        <td>{{ loop.index }}</td>
+                        <td><strong>#{{ loop.index }}</strong></td>
                         <td>
                           {% if route %}
-                            <span class="badge text-bg-light border">{{ " -> ".join(route) }}</span>
+                            <span class="badge text-bg-light border">{{ " → ".join(route) }}</span>
                           {% else %}
                             N/A
                           {% endif %}
                         </td>
                         <td>{{ item.get("distance", "N/A") }} km</td>
-                        <td>${{ item.get("price", "N/A") }}</td>
+                        <td><strong>{{ item.get("price_display", "$%.2f"|format(item.get("price", 0))) }}</strong></td>
                         <td>{{ item.get("stops", "N/A") }}</td>
                         <td>
                           {% if route %}
                             <button type="button" class="route-link-btn"
-                              onclick="submitRoute('{{ route | join(',') }}')">View Route</button>
+                              onclick="submitRoute('{{ route | join(',') }}', '{{ selection_target }}')">View Route</button>
                           {% else %}
                             -
                           {% endif %}
@@ -516,7 +819,7 @@
           </div>
         {% endif %}
 
-      </div> <!-- End mb-5 -->
+      </div>
     {% endif %}
   {% endfor %}
   </main>
@@ -650,14 +953,142 @@
     <input type="hidden" name="src" value="{{ src }}">
     <input type="hidden" name="dst" value="{{ dst }}">
     <input type="hidden" name="mode" value="{{ mode }}">
+    <input type="hidden" name="trip_type" value="{{ result.get('trip_type', 'oneway') if result else 'oneway' }}">
+    <input type="hidden" name="depart_date" value="{{ result.get('depart_date', '') if result else '' }}">
+    <input type="hidden" name="return_date" value="{{ return_result.get('depart_date', '') if return_result else '' }}">
+    <input type="hidden" name="selection_target" id="route-form-selection-target" value="outbound">
     <input type="hidden" name="route" id="route-form-route" value="">
   </form>
 
   <script>
-    function submitRoute(routeValue) {
+    function submitRoute(routeValue, selectionTarget) {
       document.getElementById('route-form-route').value = routeValue;
+      document.getElementById('route-form-selection-target').value = selectionTarget || 'outbound';
       document.getElementById('route-form').submit();
     }
+
+    function formatCurrency(value) {
+      return `$${Number(value).toFixed(2)}`;
+    }
+
+    function applyBadgeClass(badge, type) {
+      badge.classList.remove('premium-badge', 'budget-badge', 'standard-badge');
+      if (type === 'Premium') {
+        badge.classList.add('premium-badge');
+      } else if (type === 'Budget') {
+        badge.classList.add('budget-badge');
+      } else {
+        badge.classList.add('standard-badge');
+      }
+      badge.textContent = type;
+    }
+
+    function recalcSegmentTotals() {
+      const rows = Array.from(document.querySelectorAll('.segment-row'));
+      let outgoingTotal = 0;
+      let incomingTotal = 0;
+      let premiumCount = 0;
+      let budgetCount = 0;
+      let standardCount = 0;
+
+      rows.forEach((row) => {
+        const priceCell = row.querySelector('.segment-price-cell');
+        if (!priceCell) return;
+        let price = parseFloat(priceCell.dataset.price || 'NaN');
+        if (Number.isNaN(price)) {
+          price = parseFloat((priceCell.textContent || '').replace(/[^0-9.]/g, '')) || 0;
+        }
+        const trip = row.dataset.trip || 'One-way';
+        const badge = row.querySelector('.airline-type-badge');
+        const airlineType = (badge ? badge.textContent : '').trim() || 'Standard';
+
+        if (trip === 'Incoming') {
+          incomingTotal += price;
+        } else {
+          outgoingTotal += price;
+        }
+
+        if (airlineType === 'Premium') {
+          premiumCount += 1;
+        } else if (airlineType === 'Budget') {
+          budgetCount += 1;
+        } else {
+          standardCount += 1;
+        }
+      });
+
+      const outgoingEl = document.getElementById('outgoing-total');
+      const incomingEl = document.getElementById('incoming-total');
+      const discountEl = document.getElementById('discount-total');
+      const grandEl = document.getElementById('grand-total');
+      const topPriceEl = document.getElementById('top-price-display');
+      const premiumCountEl = document.getElementById('airline-count-premium');
+      const budgetCountEl = document.getElementById('airline-count-budget');
+      const standardCountEl = document.getElementById('airline-count-standard');
+
+      if (outgoingEl && incomingEl && discountEl && grandEl) {
+        const subtotal = outgoingTotal + incomingTotal;
+        const discount = subtotal * 0.15;
+        const grand = subtotal - discount;
+        outgoingEl.textContent = formatCurrency(outgoingTotal);
+        incomingEl.textContent = formatCurrency(incomingTotal);
+        discountEl.textContent = `- ${formatCurrency(discount)}`;
+        grandEl.textContent = formatCurrency(grand);
+        if (topPriceEl) {
+          topPriceEl.textContent = formatCurrency(grand);
+        }
+      } else if (grandEl) {
+        grandEl.textContent = formatCurrency(outgoingTotal);
+        if (topPriceEl) {
+          topPriceEl.textContent = formatCurrency(outgoingTotal);
+        }
+      }
+
+      if (premiumCountEl) {
+        premiumCountEl.textContent = premiumCount;
+      }
+      if (budgetCountEl) {
+        budgetCountEl.textContent = budgetCount;
+      }
+      if (standardCountEl) {
+        standardCountEl.textContent = standardCount;
+      }
+    }
+
+    function onCarrierChange(event) {
+      const select = event.target;
+      if (!select.classList.contains('carrier-select')) return;
+
+      const row = select.closest('.segment-row');
+      if (!row) return;
+
+      const selected = select.options[select.selectedIndex];
+      const price = parseFloat(selected.value || '0');
+      const type = selected.dataset.type || 'Standard';
+      const adjustment = selected.dataset.adjustment || '0%';
+
+      const priceCell = row.querySelector('.segment-price-cell');
+      if (priceCell) {
+        priceCell.dataset.price = price;
+        priceCell.innerHTML = `<strong>${formatCurrency(price)}</strong>`;
+      }
+
+      const badge = row.querySelector('.airline-type-badge');
+      if (badge) {
+        applyBadgeClass(badge, type);
+      }
+      row.dataset.airlineType = type;
+
+      const adjustmentEl = row.querySelector('.airline-adjustment');
+      if (adjustmentEl) {
+        adjustmentEl.textContent = adjustment;
+      }
+
+      recalcSegmentTotals();
+    }
+
+    document.addEventListener('change', onCarrierChange);
+    recalcSegmentTotals();
 
     function sortDfs(mode) {
       const rows = Array.from(document.querySelectorAll('#dfs-tbody tr'));
