@@ -3,9 +3,6 @@ from collections import defaultdict
 
 class AirlineClassifier:
     def __init__(self, dataset_file):
-        """
-        Initialize the classifier with your dataset
-        """
         with open(dataset_file, 'r') as f:
             self.data = json.load(f)
         
@@ -13,7 +10,6 @@ class AirlineClassifier:
         
         # Known budget airlines (LCCs)
         self.KNOWN_BUDGET_AIRLINES = {
-            # Asia Pacific
             'TR': 'Scoot',
             '3K': 'Jetstar Asia',
             'GK': 'Jetstar Japan',
@@ -141,7 +137,6 @@ class AirlineClassifier:
         self._process_data()
     
     def _process_data(self):
-        """Extract airline information from the dataset"""
         for airport_code, airport_data in self.data.items():
             if 'routes' not in airport_data:
                 continue
@@ -155,9 +150,6 @@ class AirlineClassifier:
                         self.airline_details[carrier_iata] = carrier_name
     
     def get_classifications(self):
-        """
-        Get classifications with only IATA and airline name
-        """
         classifications = {
             'budget': [],
             'premium': [],
@@ -188,7 +180,6 @@ class AirlineClassifier:
         return classifications
     
     def print_report(self):
-        """Print simple report with counts"""
         classifications = self.get_classifications()
         
         print("=" * 60)
@@ -209,9 +200,6 @@ class AirlineClassifier:
             print(f"  • {airline['iata']} - {airline['name']}")
     
     def export_classifications(self, output_file='airline_classifications.json'):
-        """
-        Export only IATA and name for budget and premium airlines
-        """
         classifications = self.get_classifications()
         
         # Create clean export with only what we need
@@ -233,38 +221,8 @@ class AirlineClassifier:
         print(f"  • {export_data['statistics']['total_budget']} budget airlines")
         print(f"  • {export_data['statistics']['total_premium']} premium airlines")
 
-# Even simpler version - just get the lists
 def get_airline_lists(dataset_file):
-    """
-    Quick function to just get the airline lists
-    Returns: (budget_list, premium_list)
-    """
     classifier = AirlineClassifier(dataset_file)
     classifications = classifier.get_classifications()
     
     return classifications['budget'], classifications['premium']
-
-# Main execution
-if __name__ == "__main__":
-    dataset_file = "airline_routes.json"  # Update this path
-    
-    print("Initializing Airline Classifier...")
-    classifier = AirlineClassifier(dataset_file)
-    
-    # Print simple report
-    classifier.print_report()
-    
-    # Export clean JSON with only IATA and name
-    classifier.export_classifications('airline_classifications.json')
-    
-    # Example: Get the lists directly
-    budget_airlines, premium_airlines = get_airline_lists(dataset_file)
-    
-    print("\n" + "=" * 60)
-    print("FIRST 5 BUDGET AIRLINES:")
-    for airline in budget_airlines[:5]:
-        print(f"  {airline['iata']}: {airline['name']}")
-    
-    print("\nFIRST 5 PREMIUM AIRLINES:")
-    for airline in premium_airlines[:5]:
-        print(f"  {airline['iata']}: {airline['name']}")

@@ -7,16 +7,28 @@ class PriceCalculation:
         self.fuelRate = 0.05
 
         self.majorHubs = {
-            "DOH": 0.70,
-            "DXB": 0.70,
-            "IST": 0.75,
-            "AUH": 0.8,
-            "AMS": 0.8,
-            "FRA": 0.8,
-            "KUL": 0.75,
-            "HKG": 0.75,
-            "ATL": 0.75,
-            "ORD": 0.8,
+            "IST": 0.80,
+            "DXB": 0.80,
+            "SEA": 0.80,
+            "YUL": 0.80,
+            "CDG": 0.80,
+
+            "GRU": 0.85,
+            "ORD": 0.85,
+            "FRA": 0.85,
+            "ANC": 0.85,
+            "EZE": 0.85,
+
+            "YYZ": 0.90,
+            "HNL": 0.90,
+            "SIN": 0.90,
+            "PPT": 0.90,
+            "PVG": 0.90,
+            "DFW": 0.90,
+            "CGK": 0.90,
+            "LAX": 0.90,
+            "YVR": 0.90,
+            "SVO": 0.90
         }
 
         self.budgetAirlines = {}
