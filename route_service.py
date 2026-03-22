@@ -297,7 +297,7 @@ class RouteService:
             "count": len(airports),
         }
 
-    def _buildResultFromRoute(self, routeCodes, mode):
+    def _buildResultFromRoute(self, routeCodes, mode, depart_date_str=None):
         if not routeCodes or len(routeCodes) < 2:
             return None
 
@@ -393,10 +393,10 @@ class RouteService:
                 }
             )
 
-        return self._finalizeResult(routeCodes, legs, mapPoints, mode, segments_details)
+        return self._finalizeResult(routeCodes, legs, mapPoints, mode, segments_details, depart_date_str=depart_date_str)
 
-    def buildRouteResult(self, routeCodes, mode):
-        return self._buildResultFromRoute(routeCodes, mode)
+    def buildRouteResult(self, routeCodes, mode, depart_date_str=None):
+        return self._buildResultFromRoute(routeCodes, mode, depart_date_str=depart_date_str)
 
     def computeDfsResults(self, sourceCode, destinationCode, mode, maxDepth=3, maxResults=25, timeoutSec=5.0, sort_by = "distance"):
         if not self.dfsSolver:
@@ -439,7 +439,7 @@ class RouteService:
             return None
         if mode == "price":
             return min(results, key=lambda route: route.get("price", float("inf")))
-        if mode == "stops":
+        if mode in ("stops", "direct"):
             return min(
                 results,
                 key=lambda route: (
@@ -449,13 +449,23 @@ class RouteService:
             )
         return min(results, key=lambda route: route.get("distance_exact", float("inf")))
 
-    def _finalizeResult(self, route, legs, mapPoints, mode, segments_details=None):
+    def _finalizeResult(self, route, legs, mapPoints, mode, segments_details=None, depart_date_str=None):
         totalDistance = sum(leg["distance_km"] for leg in legs)
         flightMinutes = sum(leg["duration_min"] for leg in legs)
         stops = max(0, len(route) - 2)
         layoverMinutes = stops * 45
         totalTravelMinutes = int(round(flightMinutes + layoverMinutes))
-        departureUtc = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+
+        current_utc = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        if depart_date_str:
+            try:
+                dt = datetime.strptime(depart_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                departureUtc = dt.replace(hour=current_utc.hour, minute=current_utc.minute, second=0, microsecond=0)
+            except ValueError:
+                departureUtc = current_utc
+        else:
+            departureUtc = current_utc
+            
         arrivalUtc = departureUtc + timedelta(minutes=totalTravelMinutes)
         avgSpeed = (totalDistance / (flightMinutes / 60.0)) if flightMinutes else 0.0
 
@@ -514,7 +524,7 @@ class RouteService:
 
         return result
 
-    def computeAlgorithmResults(self, sourceCode, destinationCode, mode):
+    def computeAlgorithmResults(self, sourceCode, destinationCode, mode, depart_date_str=None):
         if sourceCode not in self.weightedGraph.graph or destinationCode not in self.weightedGraph.graph:
             print(f"Airport not found: {sourceCode} or {destinationCode}")
             return {"best": None, "routes": []}
@@ -543,7 +553,7 @@ class RouteService:
         print(f"Distance: {total_dist}, Time: {total_time}")
 
         # Best route is computed based on selected mode
-        best = self._buildResultFromRoute(shortestPathCodes, mode)
+        best = self._buildResultFromRoute(shortestPathCodes, mode, depart_date_str=depart_date_str)
         if best:
             best["mode"] = mode
             # Add the accurate metrics
@@ -589,7 +599,7 @@ class RouteService:
                 
             seenPaths.add(pathKey)
 
-            alternative = self._buildResultFromRoute(path, mode)
+            alternative = self._buildResultFromRoute(path, mode, depart_date_str=depart_date_str)
             if alternative:
                 alternative["mode"] = "alternative"
                 # Update with accurate metrics from pathInfo
@@ -635,6 +645,6 @@ class RouteService:
             self._hub_cache = raw
         return self._hub_cache
  
-    def get_flight_schedule(self, src: str, dst: str) -> dict:
+    def get_flight_schedule(self, src: str, dst: str, date=None) -> dict:
         """Generate a daily flight timetable from src to dst."""
-        return self.scheduleSolver.generate(src, dst, num_flights=8)
+        return self.scheduleSolver.generate(src, dst, date=date, num_flights=8)

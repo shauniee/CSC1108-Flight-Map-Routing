@@ -22,7 +22,7 @@ class BFS:
         if src not in self.graph or dst not in self.graph:
             return None
         
-        if mode == "stops":
+        if mode in ("stops", "direct"):
             queue = deque([(src, [src])])
             visited = {src}
 
@@ -30,6 +30,8 @@ class BFS:
                 current, path = queue.popleft()
 
                 if current == dst:
+                    if mode == "direct" and len(path) > 2:
+                        return None
                     total_km = self.calculate_path_distance(path)
                     return {
                         "route": path,
@@ -38,9 +40,10 @@ class BFS:
                         "stops": max(0, len(path) - 2)
                     }
                 
-                for connection in self.graph.get(current, []):
-                    neighbor = connection.get('to')
-            
+                if mode == "direct" and len(path) >= 2:
+                    continue
+                
+                for neighbor in self.graph.get(current, {}):
                     if neighbor and neighbor not in visited:
                         visited.add(neighbor)
                         queue.append((neighbor, path + [neighbor]))
@@ -49,8 +52,6 @@ class BFS:
     def calculate_path_distance(self, path: list):
         total = 0
         for i in range(len(path) - 1):
-            for connection in self.graph.get(path[i], []):
-                if connection.get('to') == path[i + 1]:
-                    total += connection.get('distance', 0)
-                    break
+            if path[i+1] in self.graph.get(path[i], {}):
+                total += self.graph[path[i]][path[i+1]].get('distance', 0)
         return total

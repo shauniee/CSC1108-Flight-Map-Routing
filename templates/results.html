@@ -225,32 +225,48 @@
     "distance": "Shortest distance",
     "price": "Cheapest price",
     "stops": "Fewest stops",
-    "alternative": "Alternative (Yen)"
+    "alternative": "Alternative (Yen)",
+    "direct": "Direct flights"
   } %}
 
-  {% if result is mapping %}
-    {% set best = result.get("best", result) %}
-    {% set routes = result.get("routes", result.get("all_routes", [])) %}
-    {% set dfs_routes = result.get("dfs_routes", []) %}
-    {% set dfs_timed_out = result.get("dfs_timed_out", false) %}
-  {% elif result is sequence and result is not string %}
-    {% set routes = result %}
-    {% set best = routes[0] if routes else none %}
-    {% set dfs_routes = [] %}
-    {% set dfs_timed_out = false %}
-  {% else %}
-    {% set best = none %}
-    {% set routes = [] %}
-    {% set dfs_routes = [] %}
-    {% set dfs_timed_out = false %}
-  {% endif %}
+  {% for current_result in [result, return_result] %}
+    {% if current_result %}
+      {% set current_src = dst if loop.index == 2 else src %}
+      {% set current_dst = src if loop.index == 2 else dst %}
+      <div class="mb-5">
+      {% if loop.index == 2 %}
+        <hr class="my-5" style="border-top: 3px dashed #ccdbef;">
+        <h2 class="h3 font-weight-bold mb-4" style="color: #0c55a3;">Return Trip Details</h2>
+        {% if return_no_direct %}
+          <div class="alert alert-warning mb-4">No direct flights found for the return trip. Showing results for "Fewest stops" instead.</div>
+        {% endif %}
+      {% else %}
+        <h2 class="h3 font-weight-bold mb-4" style="color: #0c55a3;">Outbound Trip Details</h2>
+        {% if no_direct %}
+          <div class="alert alert-warning mb-4">No direct flights found for the outbound trip. Showing results for "Fewest stops" instead.</div>
+        {% endif %}
+      {% endif %}
 
-  <main class="container py-5">
-    <div class="row justify-content-center">
-      <div class="col-12 col-xl-11">
-        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-          <div>
-            <h1 class="page-title h2 mb-1">{{ src }} to {{ dst }}</h1>
+      {% if current_result is mapping %}
+        {% set best = current_result.get("best", current_result) %}
+        {% set routes = current_result.get("routes", current_result.get("all_routes", [])) %}
+        {% set dfs_routes = current_result.get("dfs_routes", []) %}
+        {% set dfs_timed_out = current_result.get("dfs_timed_out", false) %}
+      {% elif current_result is sequence and current_result is not string %}
+        {% set routes = current_result %}
+        {% set best = routes[0] if routes else none %}
+        {% set dfs_routes = [] %}
+        {% set dfs_timed_out = false %}
+      {% else %}
+        {% set best = none %}
+        {% set routes = [] %}
+        {% set dfs_routes = [] %}
+        {% set dfs_timed_out = false %}
+      {% endif %}
+
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+          <h1 class="page-title h2 mb-1">{{ current_src }} to {{ current_dst }}</h1>
             <p class="mb-0 text-secondary">Computed using {{ mode_labels.get(mode, mode|title) }}</p>
           </div>
           <div>
@@ -341,8 +357,8 @@
                 </div>
               </div>
 
-              <div class="map-shell mb-4">
-                <div id="route-map"></div>
+              <div class="card-body p-0">
+                <div id="route-map-{{ loop.index }}" class="map-container mb-4"></div>
               </div>
 
               <h3 class="h6 mb-3">Leg Breakdown</h3>
@@ -491,6 +507,10 @@
           </div>
         {% endif %}
 
+      </div> <!-- End mb-5 -->
+    {% endif %}
+  {% endfor %}
+
         <a href="/" class="btn btn-outline-primary px-4">Back to Dashboard</a>
       </div>
     </div>
@@ -502,9 +522,6 @@
     crossorigin=""
   ></script>
   <script>
-    const points = {{ (best.get("map_points", []) if best else []) | tojson }};
-    const routeMap = document.getElementById("route-map");
-
     function calcPixelDistance(a, b) {
       const dx = b.x - a.x;
       const dy = b.y - a.y;
@@ -515,102 +532,113 @@
       return Math.atan2(toPoint.y - fromPoint.y, toPoint.x - fromPoint.x) * 180 / Math.PI;
     }
 
-    if (routeMap && window.L && points.length >= 2) {
-      const validPoints = points.filter((point) => typeof point.lat === "number" && typeof point.lon === "number");
-      if (validPoints.length >= 2) {
-        const map = L.map("route-map", {
-          zoomControl: true,
-          worldCopyJump: true
-        }).setView([18, 0], 2);
+    function initAirMap(mapId, points) {
+      const routeMap = document.getElementById(mapId);
+      if (routeMap && window.L && points.length >= 2) {
+        const validPoints = points.filter((point) => typeof point.lat === "number" && typeof point.lon === "number");
+        if (validPoints.length >= 2) {
+          const map = L.map(mapId, {
+            zoomControl: true,
+            worldCopyJump: true
+          }).setView([18, 0], 2);
 
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 7,
-          attribution: "&copy; OpenStreetMap contributors"
-        }).addTo(map);
-
-        const latLngs = validPoints.map((point) => [point.lat, point.lon]);
-        const line = L.polyline(latLngs, {
-          color: "#0f6bcf",
-          weight: 4,
-          opacity: 0.9,
-          lineJoin: "round"
-        }).addTo(map);
-
-        validPoints.forEach((point, idx) => {
-          const marker = L.circleMarker([point.lat, point.lon], {
-            radius: idx === 0 || idx === validPoints.length - 1 ? 7 : 5,
-            color: "#0b4f99",
-            weight: 2,
-            fillColor: idx === 0 || idx === validPoints.length - 1 ? "#f28a21" : "#0f6bcf",
-            fillOpacity: 0.95
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 7,
+            attribution: "&copy; OpenStreetMap contributors"
           }).addTo(map);
 
-          marker.bindPopup(`<strong>${point.code}</strong><br>${point.label}<br>Waypoint ${idx + 1}`);
-        });
+          const latLngs = validPoints.map((point) => [point.lat, point.lon]);
+          const line = L.polyline(latLngs, {
+            color: "#0f6bcf",
+            weight: 4,
+            opacity: 0.9,
+            lineJoin: "round"
+          }).addTo(map);
 
-        const planeIcon = L.divIcon({
-          html: '<div class="plane-icon"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M61 32L39 24L29 5L23 6L27 26L14 21L10 24L19 32L10 40L14 43L27 38L23 58L29 59L39 40L61 32Z"></path></svg></div>',
-          className: "plane-icon-wrap",
-          iconSize: [34, 34],
-          iconAnchor: [17, 17]
-        });
+          validPoints.forEach((point, idx) => {
+            const marker = L.circleMarker([point.lat, point.lon], {
+              radius: idx === 0 || idx === validPoints.length - 1 ? 7 : 5,
+              color: "#0b4f99",
+              weight: 2,
+              fillColor: idx === 0 || idx === validPoints.length - 1 ? "#f28a21" : "#0f6bcf",
+              fillOpacity: 0.95
+            }).addTo(map);
 
-        const planeMarker = L.marker(latLngs[0], { icon: planeIcon }).addTo(map);
-        const cycleMs = 14000;
-        let startTs = null;
+            marker.bindPopup(`<strong>${point.code}</strong><br>${point.label}<br>Waypoint ${idx + 1}`);
+          });
 
-        function placePlane(progress) {
-          const projectedPoints = latLngs.map((latLng) => map.latLngToLayerPoint(latLng));
-          const segmentLengths = [];
-          let totalLength = 0;
+          const planeIcon = L.divIcon({
+            html: '<div class="plane-icon"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M61 32L39 24L29 5L23 6L27 26L14 21L10 24L19 32L10 40L14 43L27 38L23 58L29 59L39 40L61 32Z"></path></svg></div>',
+            className: "plane-icon-wrap",
+            iconSize: [34, 34],
+            iconAnchor: [17, 17]
+          });
 
-          for (let i = 0; i < projectedPoints.length - 1; i += 1) {
-            const segLen = calcPixelDistance(projectedPoints[i], projectedPoints[i + 1]);
-            segmentLengths.push(segLen);
-            totalLength += segLen;
+          const planeMarker = L.marker(latLngs[0], { icon: planeIcon }).addTo(map);
+          const cycleMs = 14000;
+          let startTs = null;
+
+          function placePlane(progress) {
+            const projectedPoints = latLngs.map((latLng) => map.latLngToLayerPoint(latLng));
+            const segmentLengths = [];
+            let totalLength = 0;
+
+            for (let i = 0; i < projectedPoints.length - 1; i += 1) {
+              const segLen = calcPixelDistance(projectedPoints[i], projectedPoints[i + 1]);
+              segmentLengths.push(segLen);
+              totalLength += segLen;
+            }
+
+            if (totalLength <= 0) {
+              return;
+            }
+
+            let remaining = totalLength * progress;
+            let segmentIndex = 0;
+
+            while (segmentIndex < segmentLengths.length - 1 && remaining > segmentLengths[segmentIndex]) {
+              remaining -= segmentLengths[segmentIndex];
+              segmentIndex += 1;
+            }
+
+            const fromPoint = projectedPoints[segmentIndex];
+            const toPoint = projectedPoints[segmentIndex + 1] || projectedPoints[segmentIndex];
+            const segmentLen = Math.max(segmentLengths[segmentIndex] || 1, 1e-6);
+            const ratio = Math.min(Math.max(remaining / segmentLen, 0), 1);
+            const x = fromPoint.x + ((toPoint.x - fromPoint.x) * ratio);
+            const y = fromPoint.y + ((toPoint.y - fromPoint.y) * ratio);
+
+            planeMarker.setLatLng(map.layerPointToLatLng(L.point(x, y)));
+
+            const bearing = calcScreenBearingDeg(fromPoint, toPoint);
+            const planeEl = planeMarker.getElement()?.querySelector(".plane-icon");
+            if (planeEl) {
+              planeEl.style.transform = `rotate(${bearing}deg)`;
+            }
           }
 
-          if (totalLength <= 0) {
-            return;
+          function animate(ts) {
+            if (!startTs) {
+              startTs = ts;
+            }
+            const progress = ((ts - startTs) % cycleMs) / cycleMs;
+            placePlane(progress);
+            requestAnimationFrame(animate);
           }
 
-          let remaining = totalLength * progress;
-          let segmentIndex = 0;
-
-          while (segmentIndex < segmentLengths.length - 1 && remaining > segmentLengths[segmentIndex]) {
-            remaining -= segmentLengths[segmentIndex];
-            segmentIndex += 1;
-          }
-
-          const fromPoint = projectedPoints[segmentIndex];
-          const toPoint = projectedPoints[segmentIndex + 1] || projectedPoints[segmentIndex];
-          const segmentLen = Math.max(segmentLengths[segmentIndex] || 1, 1e-6);
-          const ratio = Math.min(Math.max(remaining / segmentLen, 0), 1);
-          const x = fromPoint.x + ((toPoint.x - fromPoint.x) * ratio);
-          const y = fromPoint.y + ((toPoint.y - fromPoint.y) * ratio);
-
-          planeMarker.setLatLng(map.layerPointToLatLng(L.point(x, y)));
-
-          const bearing = calcScreenBearingDeg(fromPoint, toPoint);
-          const planeEl = planeMarker.getElement()?.querySelector(".plane-icon");
-          if (planeEl) {
-            planeEl.style.transform = `rotate(${bearing}deg)`;
-          }
-        }
-
-        function animate(ts) {
-          if (!startTs) {
-            startTs = ts;
-          }
-          const progress = ((ts - startTs) % cycleMs) / cycleMs;
-          placePlane(progress);
           requestAnimationFrame(animate);
+          map.fitBounds(line.getBounds(), { padding: [36, 36] });
         }
-
-        requestAnimationFrame(animate);
-        map.fitBounds(line.getBounds(), { padding: [36, 36] });
       }
     }
+
+    const points_1 = {{ (result.get("best", {}).get("map_points", []) if result and result.get("best") else []) | tojson }};
+    initAirMap("route-map-1", points_1);
+
+    {% if return_result %}
+      const points_2 = {{ (return_result.get("best", {}).get("map_points", []) if return_result and return_result.get("best") else []) | tojson }};
+      initAirMap("route-map-2", points_2);
+    {% endif %}
   </script>
 
   <form id="route-form" method="post" action="/route-option" style="display:none">
