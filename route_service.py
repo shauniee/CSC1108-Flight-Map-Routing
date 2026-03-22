@@ -10,7 +10,7 @@ from Algorithms.dfs import DFS
 from Algorithms.dijkstra import Dijkstra
 from flightSchedule import FlightSchedule
 from loadDataset import WeightedGraph
-from yen import Yen
+from Algorithms.yen import Yen
 from AirlineData.pricing import PriceCalculation  # Import the pricing class
 from budgetLoop import BudgetLoopSearch
 from AirlineData.pricing import PriceCalculation 

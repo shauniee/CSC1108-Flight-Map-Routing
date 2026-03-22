@@ -5,7 +5,7 @@ class BudgetLoopSearch:
 
     def find_best_loop(self, start : str, budget : float, target_cities : int, max_depth: int=None, time_outsec : float = 9.0):
         best_path = None
-        best_cost = float("inf")
+        best_cost = float("-inf")
 
         if target_cities >= 5:
             time_outsec = 25.0
@@ -44,7 +44,7 @@ class BudgetLoopSearch:
                     if candidate_cities != target_cities:
                         continue
 
-                    if best_path is None or next_cost < best_cost:
+                    if best_path is None or next_cost > best_cost:
                         best_path = candidate_path
                         best_cost = next_cost
                 
