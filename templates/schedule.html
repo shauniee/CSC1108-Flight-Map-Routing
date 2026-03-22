@@ -84,28 +84,22 @@
 
         <!-- Summary cards -->
         <div class="row g-3 mb-4">
-          <div class="col-6 col-lg-3">
+          <div class="col-6 col-lg-4">
             <div class="metric-card">
               <p class="metric-label">Route</p>
               <p class="metric-value">{{ result.src }} → {{ result.dst }}</p>
             </div>
           </div>
-          <div class="col-6 col-lg-3">
+          <div class="col-6 col-lg-4">
             <div class="metric-card">
               <p class="metric-label">Distance</p>
               <p class="metric-value">{{ result.distance_km }} km</p>
             </div>
           </div>
-          <div class="col-6 col-lg-3">
+          <div class="col-6 col-lg-4">
             <div class="metric-card">
               <p class="metric-label">Flight Time</p>
               <p class="metric-value">{{ result.duration_label }}</p>
-            </div>
-          </div>
-          <div class="col-6 col-lg-3">
-            <div class="metric-card">
-              <p class="metric-label">CO₂ / pax</p>
-              <p class="metric-value">{{ result.co2_kg }} kg</p>
             </div>
           </div>
         </div>
@@ -126,9 +120,8 @@
                     <th>Departure</th>
                     <th>Arrival</th>
                     <th>Duration</th>
-                    <th>Aircraft</th>
+                    <th>Type</th>
                     <th>Est. Price</th>
-                    <th>CO₂</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -139,9 +132,8 @@
                       <td><span class="time-block">{{ f.departure_time }}</span></td>
                       <td><span class="time-block">{{ f.arrival_time }}</span></td>
                       <td>{{ f.duration_label }}</td>
-                      <td><small class="text-muted">{{ f.aircraft }}</small></td>
+                      <td><small class="text-muted">{{ f.airline_type }}</small></td>
                       <td><span class="price-tag">${{ f.price }}</span></td>
-                      <td><small class="text-muted">{{ f.co2_kg }} kg</small></td>
                     </tr>
                   {% endfor %}
                 </tbody>

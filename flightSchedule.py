@@ -1,6 +1,10 @@
 import math
 import random
 from datetime import datetime, timedelta, timezone
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "AirlineData"))
+from pricing import PriceCalculation
 
 
 class FlightSchedule:
@@ -12,14 +16,6 @@ class FlightSchedule:
     Aircraft type is selected based on route distance.
     Departure times are spread realistically across the day.
     Prices vary by time of day (peak/off-peak).
-
-    Parameters
-    ----------
-    airport_meta : dict[str, dict]
-        The same airport_meta dict used by RouteService.
-    graph : dict[str, dict]
-        WeightedGraph adjacency map with route edge data:
-        distance (km), time (min), carriers (list[str]).
     """
 
     _DEPARTURE_WINDOWS = [
@@ -41,9 +37,10 @@ class FlightSchedule:
 
     EARTH_RADIUS_KM: float = 6_371.0
 
-    def __init__(self, airport_meta: dict, graph: dict):
+    def __init__(self, airport_meta: dict, graph: dict, price_calculator: PriceCalculation = None):
         self.airport_meta = airport_meta
         self.graph = graph
+        self.priceCalculator = price_calculator if price_calculator else PriceCalculation()
 
     def generate(
         self,
@@ -85,9 +82,6 @@ class FlightSchedule:
         if not carriers:
             carriers = ["Charter"]
 
-        # Aircraft type based on real distance
-        aircraft_type = self._pick_aircraft(distance_km)
-
         # Stable seed so same route = same schedule each day
         seed = hash(f"{src}{dst}{date.strftime('%Y%m%d')}") & 0xFFFFFFFF
         rng  = random.Random(seed)
@@ -107,10 +101,26 @@ class FlightSchedule:
                 tzinfo=timezone.utc,
             )
             arr_dt = dep_dt + timedelta(minutes=flight_minutes)
+            
+            airline_type = self._get_airline_type(airline_name) 
 
-            base_price = self._base_price(distance_km)
+            base_result = self.priceCalculator.calculatePrice(
+                fromAirport=src,
+                toAirport=dst,
+                distance=distance_km,
+                carriers=[airline_name],
+                directFlight=False,
+            )
+            
+    
+            base_price = base_result['price']
+            if airline_type == "Premium":
+                base_price *= 1.2
+            elif airline_type == "Budget":
+                base_price *= 0.8
+            
             multiplier = self._price_multiplier(dep_hour, rng)
-            price      = round(base_price * multiplier, 2)
+            price = round(base_price * multiplier, 2)
 
             flights.append({
                 "flight_number":  flight_number,
@@ -119,10 +129,9 @@ class FlightSchedule:
                 "arrival_time":   arr_dt.strftime("%H:%M"),
                 "duration_label": self._minutes_to_label(flight_minutes),
                 "duration_min":   flight_minutes,
-                "aircraft":       aircraft_type,
                 "price":          price,
-                "co2_kg":         round(distance_km * 0.255, 1),
-            })
+                "airline_type":   airline_type,
+                })
 
         flights.sort(key=lambda f: f["departure_time"])
 
@@ -132,7 +141,6 @@ class FlightSchedule:
             "src_meta":       src_meta,
             "dst_meta":       dst_meta,
             "distance_km":    round(distance_km, 1),
-            "co2_kg":         round(distance_km * 0.255, 1),
             "flight_minutes": flight_minutes,
             "duration_label": self._minutes_to_label(flight_minutes),
             "date_label":     date.strftime("%A, %d %B %Y"),
@@ -160,18 +168,6 @@ class FlightSchedule:
         if len(letters) == 1:
             return f"{letters}X"
         return "XX"
-
-    def _pick_aircraft(self, distance_km: float) -> str:
-        if distance_km < 1500:
-            bucket = "short"
-        elif distance_km < 5000:
-            bucket = "medium"
-        else:
-            bucket = "long"
-        return random.choice(self._AIRCRAFT[bucket])
-
-    def _base_price(self, km: float) -> float:
-        return round(35 + km * 0.11 + 25, 2)
 
     def _price_multiplier(self, hour: int, rng: random.Random) -> float:
         if 7 <= hour <= 9 or 17 <= hour <= 20:
@@ -208,3 +204,14 @@ class FlightSchedule:
             + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
         )
         return 2 * R * math.asin(math.sqrt(a))
+    
+    def _get_airline_type(self, airline_name: str) -> str:
+        pc = self.priceCalculator
+        name_upper = airline_name.upper()
+        for iata, name in pc.premiumAirlines.items():
+            if name.upper() == name_upper:
+                return "Premium"
+        for iata, name in pc.budgetAirlines.items():
+            if name.upper() == name_upper:
+                return "Budget"
+        return "Standard"

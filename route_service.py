@@ -10,7 +10,7 @@ from dijkstra import Dijkstra
 from flightSchedule import FlightSchedule
 from loadDataset import WeightedGraph
 from yen import Yen
-from AirlineData.pricing import PriceCalculation  # Import the pricing class
+from AirlineData.pricing import PriceCalculation 
 
 
 class RouteService:
@@ -66,7 +66,6 @@ class RouteService:
         self.yenSolver = Yen(self.weightedGraph, dijkstra=self.dijkstraSolver)
         self.dfsSolver = DFS(self._buildDfsGraph())
         self.betweennessSolver = Betweenness(self.weightedGraph.graph)
-        self.scheduleSolver = FlightSchedule(self.airportMeta, self.weightedGraph.graph)
 
     def _buildDfsGraph(self):
         dfsGraph = {}
@@ -98,6 +97,13 @@ class RouteService:
         except Exception as e:
             self.priceCalculator = PriceCalculation()
             self.airlineClassifications = {}
+            
+            
+        self.scheduleSolver = FlightSchedule(
+            self.airportMeta,
+            self.weightedGraph.graph,
+            price_calculator=self.priceCalculator
+        )
 
     def getAirlineType(self, carrierIata):
         """Get airline type (Budget/Premium/Standard) from IATA code"""

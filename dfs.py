@@ -1,4 +1,5 @@
 import time
+from typing import Tuple, List
 
 
 class DFS:
@@ -25,7 +26,7 @@ class DFS:
         max_results: int   = 50,
         timeout_sec: float = 5.0,
         sort_by:     str   = "duration",
-    ) -> tuple[list, bool]:
+    ) -> Tuple[List, bool]:
         """
         Enumerate simple paths from *start* → *end* up to *max_depth* hops.
 
