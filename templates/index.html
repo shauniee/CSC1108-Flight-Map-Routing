@@ -127,7 +127,7 @@
       }
 
       .mode-tabs {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
       }
     }
 
@@ -179,7 +179,11 @@
             <p class="section-label">Flight Planner</p>
             <h1 class="hero-title h2">Build the best route in seconds</h1>
             <p class="subtle mb-4">Search across your route network or switch to a Haversine proximity lookup.</p>
-
+            <div class="d-flex gap-2 mb-4">
+              <a href="/schedule" class="btn btn-sm btn-outline-primary">🕐 Flight Schedule</a>
+              <a href="/hubs" class="btn btn-sm btn-outline-primary">🌐 Hub Detector</a>
+            </div>
+            
             <div class="block mb-4">
               <p class="section-label mb-3">Search Type</p>
               <div class="dashboard-tabs" role="tablist" aria-label="Dashboard mode">
@@ -192,6 +196,28 @@
             <section id="route-panel" class="dashboard-panel active">
               <form method="post" action="/search" class="row g-4" id="route-form" novalidate>
                 <input type="hidden" name="search_type" value="route">
+                <div class="col-12">
+                  <div class="block">
+                    <p class="section-label mb-3">Trip Details</p>
+                    <div class="row g-3">
+                      <div class="col-12 col-md-4">
+                        <label for="trip-type" class="form-label fw-semibold">Trip Type</label>
+                        <select id="trip-type" name="trip_type" class="form-select">
+                          <option value="oneway">One-way</option>
+                          <option value="return">Return</option>
+                        </select>
+                      </div>
+                      <div class="col-12 col-md-4">
+                        <label for="depart-date" class="form-label fw-semibold">Depart Date</label>
+                        <input type="date" id="depart-date" name="depart_date" class="form-control" required>
+                      </div>
+                      <div class="col-12 col-md-4" id="return-date-container" style="display: none;">
+                        <label for="return-date" class="form-label fw-semibold">Return Date</label>
+                        <input type="date" id="return-date" name="return_date" class="form-control">
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div class="col-12">
                   <div class="block">
                     <p class="section-label mb-3">Route</p>
@@ -228,6 +254,7 @@
                       <button type="button" class="mode-tab active" data-mode="distance" aria-pressed="true">Shortest distance</button>
                       <button type="button" class="mode-tab" data-mode="price" aria-pressed="false">Cheapest price</button>
                       <button type="button" class="mode-tab" data-mode="stops" aria-pressed="false">Fewest stops</button>
+                      <button type="button" class="mode-tab" data-mode="direct" aria-pressed="false">Direct flights</button>
                     </div>
                   </div>
                 </div>
@@ -346,6 +373,42 @@
     const budgetSubmitBtn = document.getElementById("budget-submit-btn");
     const budgetSubmitSpinner = document.getElementById("budget-submit-spinner");
     const budgetSubmitLabel = budgetSubmitBtn.querySelector(".submit-label");
+
+    // Trip type and date logic
+    const tripTypeEl = document.getElementById("trip-type");
+    const returnDateContainer = document.getElementById("return-date-container");
+    const returnDateEl = document.getElementById("return-date");
+    const departDateEl = document.getElementById("depart-date");
+
+    if (tripTypeEl) {
+      tripTypeEl.addEventListener("change", function() {
+        if (this.value === "return") {
+          returnDateContainer.style.display = "block";
+          returnDateEl.required = true;
+        } else {
+          returnDateContainer.style.display = "none";
+          returnDateEl.required = false;
+          returnDateEl.value = "";
+        }
+      });
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (departDateEl) {
+      departDateEl.min = todayStr;
+      departDateEl.addEventListener("change", function() {
+        if (returnDateEl) {
+          returnDateEl.min = this.value;
+          if (returnDateEl.value && returnDateEl.value < this.value) {
+            returnDateEl.value = this.value;
+          }
+        }
+      });
+    }
+    if (returnDateEl) {
+      returnDateEl.min = todayStr;
+    }
+
     if (window.TomSelect) {
       new TomSelect(routeSrcEl, { create: false, sortField: { field: "text", direction: "asc" } });
       new TomSelect(routeDstEl, { create: false, sortField: { field: "text", direction: "asc" } });

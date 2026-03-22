@@ -2,7 +2,7 @@ import json
 
 class PriceCalculation:
     def __init__(self, airlineClassificationFile='airline_classifications.json'):
-        self.baseRate = 0.15
+        self.baseRate = 0.08
         self.fuelRate = 0.02
 
         self.majorHubs = {

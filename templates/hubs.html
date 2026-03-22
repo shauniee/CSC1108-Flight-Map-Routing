@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Airport Hub Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <style>
+    :root {
+      --bg-start:#f4f8ff; --bg-end:#fef8ee; --surface:#fff;
+      --surface-soft:#f8fafd; --ink:#15233b; --muted:#5f6f89;
+      --brand:#0f6bcf; --brand-strong:#0c55a3; --accent:#f28a21; --line:#dce6f5;
+    }
+    body {
+      font-family:"Manrope",sans-serif; color:var(--ink);
+      background: radial-gradient(1200px 500px at 10% -10%,#cde4ff 0%,transparent 60%),
+                  radial-gradient(1000px 400px at 95% 0%,#ffe8c7 0%,transparent 60%),
+                  linear-gradient(160deg,var(--bg-start),var(--bg-end));
+      min-height:100vh;
+    }
+    .panel { background:var(--surface); border:1px solid var(--line); border-radius:22px; box-shadow:0 20px 50px rgba(19,38,68,.10); animation:rise .45s ease both; }
+    .page-title { font-family:"Fraunces",serif; }
+    .section-label { font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; color:var(--brand-strong); font-weight:800; margin-bottom:.6rem; }
+    .metric-card { background:var(--surface-soft); border:1px solid var(--line); border-radius:16px; padding:1rem; }
+    .metric-label { color:var(--muted); font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; font-weight:700; margin-bottom:.25rem; }
+    .metric-value { font-weight:800; font-size:1.12rem; color:var(--brand-strong); margin-bottom:0; }
+    .map-shell { border:1px solid var(--line); border-radius:16px; overflow:hidden; background:#edf4ff; }
+    #hub-map { width:100%; height:480px; }
+    .table thead th { font-size:.78rem; letter-spacing:.05em; text-transform:uppercase; color:#4f607d; }
+    .rank-badge { background:#e6f3ff; color:#08519c; border:1px solid #c8e2ff; border-radius:999px; padding:.2rem .55rem; font-size:.8rem; font-weight:800; }
+    .score-bar-wrap { background:#e9f0fb; border-radius:999px; height:8px; min-width:80px; }
+    .score-bar { background:var(--brand); border-radius:999px; height:8px; }
+    .algo-callout { background:#f0f6ff; border:1px solid #c8dfff; border-radius:16px; padding:1rem 1.25rem; }
+    @keyframes rise { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+<main class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-xl-11">
+
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+          <p class="section-label mb-1">Betweenness Centrality</p>
+          <h1 class="page-title h2 mb-0">Airport Hub Detector</h1>
+        </div>
+        <a href="/" class="btn btn-outline-primary px-4">Back to Dashboard</a>
+      </div>
+
+      <div class="algo-callout mb-4">
+        <p class="fw-700 mb-1" style="font-weight:800">How it works</p>
+        <p class="mb-0 text-secondary" style="font-size:.9rem">
+          Betweenness Centrality (Brandes, 2001) counts how often each airport appears on the
+          shortest path between every other pair of airports in the network. 
+          A high score means the airport is a critical transit hub — removing it would disrupt the most routes.
+        </p>
+      </div>
+
+      {% if hubs %}
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+          <div class="metric-card">
+            <p class="metric-label">Top Hub</p>
+            <p class="metric-value">{{ hubs[0].code }}</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="metric-card">
+            <p class="metric-label">Top Score</p>
+            <p class="metric-value">{{ hubs[0].centrality_score }}</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="metric-card">
+            <p class="metric-label">Most Connected</p>
+            <p class="metric-value">{{ (hubs | sort(attribute='connection_count', reverse=True) | first).code }}</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="metric-card">
+            <p class="metric-label">Hubs Ranked</p>
+            <p class="metric-value">{{ hubs | length }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel mb-4">
+        <div class="card-body p-4">
+          <h2 class="h5 mb-3">Hub Map — Bubble Size = Centrality Score</h2>
+          <div class="map-shell">
+            <div id="hub-map"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel mb-4">
+        <div class="card-body p-4">
+          <h2 class="h5 mb-3">Rankings</h2>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Code</th>
+                  <th>Airport</th>
+                  <th>City</th>
+                  <th>Country</th>
+                  <th>Centrality Score</th>
+                  <th>Connections</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% set max_score = hubs[0].centrality_score %}
+                {% for hub in hubs %}
+                <tr>
+                  <td><span class="rank-badge">#{{ hub.rank }}</span></td>
+                  <td><strong>{{ hub.code }}</strong></td>
+                  <td>{{ hub.display_name }}</td>
+                  <td>{{ hub.city_name }}</td>
+                  <td>{{ hub.country }}</td>
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="score-bar-wrap">
+                        <div class="score-bar" style="width:{{ ((hub.centrality_score / max_score) * 100) | int }}%"></div>
+                      </div>
+                      <span style="font-size:.85rem;font-weight:700">{{ hub.centrality_score }}</span>
+                    </div>
+                  </td>
+                  <td>{{ hub.connection_count }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+  const hubData = {{ hubs | tojson }};
+  const mapEl   = document.getElementById("hub-map");
+
+  if (mapEl && window.L && hubData.length) {
+    const map = L.map("hub-map").setView([20, 10], 2);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 8, attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    const maxScore = hubData[0].centrality_score || 1;
+
+    hubData.forEach((hub, idx) => {
+      if (hub.latitude == null || hub.longitude == null) return;
+
+      const ratio  = hub.centrality_score / maxScore;
+      const radius = 8 + ratio * 24;
+      const color  = idx < 3 ? "#f28a21" : "#0f6bcf";
+
+      const circle = L.circleMarker([hub.latitude, hub.longitude], {
+        radius:      radius,
+        color:       color,
+        weight:      2,
+        fillColor:   color,
+        fillOpacity: 0.65,
+      }).addTo(map);
+
+      circle.bindPopup(`
+        <strong>#${hub.rank} ${hub.code}</strong><br>
+        ${hub.display_name}<br>
+        ${hub.city_name}, ${hub.country}<br>
+        <hr style="margin:.4rem 0">
+        Centrality score: <strong>${hub.centrality_score}</strong><br>
+        Direct connections: <strong>${hub.connection_count}</strong>
+      `);
+    });
+  }
+</script>
+</body>
+</html>
