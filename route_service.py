@@ -4,9 +4,10 @@ import math
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from betweenness import Betweenness
-from dfs import DFS
-from dijkstra import Dijkstra
+from Algorithms.betweenness import Betweenness
+from Algorithms.BellmanFord import BellmanFord
+from Algorithms.dfs import DFS
+from Algorithms.dijkstra import Dijkstra
 from flightSchedule import FlightSchedule
 from loadDataset import WeightedGraph
 from yen import Yen
@@ -16,22 +17,31 @@ from AirlineData.pricing import PriceCalculation
 
 
 class RouteService:
-    def __init__(self, routesFile: Path, airlineClassificationFile: Path = None):
-        self.routesFile = routesFile
-        self.airlineClassificationFile = airlineClassificationFile or Path("airline_classifications.json")
+    def __init__(self, routesFile: Path, airlineClassification: Path):
+        
+        if routesFile is None:
+            self.routesFile = Path("AirlineData/airline_routes.json")
+        else:
+            self.routesFile = routesFile
+
+        if airlineClassification is None:
+            self.airlineClassificationFile = Path(__file__).parent / "AirlineData" / "airline_classifications.json"
+        else:
+            self.airlineClassificationFile = airlineClassification
+
         self.airports = {}
         self.airportMeta = {}
         self.weightedGraph = WeightedGraph()
         self.dijkstraSolver = None
+        self.bellmanFordSolver = None
         self.yenSolver = None
         self.dfsSolver = None
         self.budgetloopSolver = None
         self.betweennessSolver = None
         self.scheduleSolver = None
-        self.priceCalculator = None  # Will initialize after loading classifications
-        self.airlineClassifications = {}  # Store airline classifications
+        self.priceCalculator = PriceCalculation(str(self.airlineClassificationFile))
         self._loadRoutingContext()
-        self._loadAirlineClassifications()
+        self.airlineClassifications = self._loadAirlineClassifications()
 
     def _loadRoutingContext(self):
         with self.routesFile.open("r", encoding="utf-8") as f:
@@ -66,10 +76,17 @@ class RouteService:
         self.airports = dict(sorted(airports.items(), key=lambda item: item[0]))
         self.airportMeta = airportMeta
         self.dijkstraSolver = Dijkstra(self.weightedGraph)
+        self.bellmanFordSolver = BellmanFord(self.weightedGraph)
         self.yenSolver = Yen(self.weightedGraph, dijkstra=self.dijkstraSolver)
         self.dfsSolver = DFS(self._buildDfsGraph())
         self.budgetloopSolver = BudgetLoopSearch(self.weightedGraph.graph)
         self.betweennessSolver = Betweenness(self.weightedGraph.graph)
+
+        self.scheduleSolver = FlightSchedule(
+            self.airportMeta,
+            self.weightedGraph.graph,
+            price_calculator=self.priceCalculator
+        )
 
     def _buildDfsGraph(self):
         dfsGraph = {}
@@ -110,21 +127,23 @@ class RouteService:
         )
 
     def getAirlineType(self, carrierIata):
-        """Get airline type (Budget/Premium/Standard) from IATA code"""
-        if not self.airlineClassifications:
-            return "Standard"
-        
-        # Check budget airlines
-        for airline in self.airlineClassifications.get('budget_airlines', []):
-            if airline['iata'] == carrierIata:
-                return "Budget"
-        
-        # Check premium airlines
-        for airline in self.airlineClassifications.get('premium_airlines', []):
-            if airline['iata'] == carrierIata:
-                return "Premium"
-        
+        if self.priceCalculator:
+            return self.priceCalculator.getAirlineType(carrierIata)
         return "Standard"
+    
+    def getAirlineName(self, carrierIata):
+        if self.priceCalculator:
+            return self.priceCalculator.getAirlineName(carrierIata)
+        return carrierIata  # Return IATA code as fallback
+
+    def getAirlineRateAdjustmentLabel(self, airlineType):
+        if self.priceCalculator:
+            return self.priceCalculator.getRateAdjustmentLabel(airlineType)
+        if airlineType == "Premium":
+            return "+20%"
+        if airlineType == "Budget":
+            return "-20%"
+        return "0%"
 
     def estimateTotalPrice(self, totalKm, legs):
         """Legacy method - kept for backward compatibility"""
@@ -162,12 +181,18 @@ class RouteService:
                 directFlight=is_direct,
                 connectingAirport=connecting_airport
             )
+            carrier_price_options = self.priceCalculator.getCarrierPriceOptions(
+                distance=distance,
+                carriers=carriers,
+                directFlight=is_direct,
+                connectingAirport=connecting_airport
+            )
             
             # Get airline type for this segment
-            airline_type = "Standard"
-            if carriers:
-                # Check first carrier's type (or you could have logic for multiple carriers)
-                airline_type = self.getAirlineType(carriers[0]) if carriers else "Standard"
+            airline_type = segment_price_info.get("airlineInfo", {}).get("type", "Standard")
+            
+            # FIXED: Correct list comprehension for airline names
+            airline_names = [self.getAirlineName(c) for c in carriers] if carriers else []
             
             segments_prices.append({
                 'from': from_airport,
@@ -175,7 +200,10 @@ class RouteService:
                 'price': segment_price_info['price'],
                 'breakdown': segment_price_info['breakdown'],
                 'airline_type': airline_type,
-                'carriers': carriers
+                'carriers': carriers,
+                'airline_names': airline_names,
+                'carrier_price_options': carrier_price_options,
+                'selected_carrier': carrier_price_options[0]['carrier'] if carrier_price_options else None,
             })
             
             total_price += segment_price_info['price']
@@ -358,10 +386,28 @@ class RouteService:
             fromMeta = self.airportMeta.get(fromCode, {})
             toMeta = self.airportMeta.get(toCode, {})
             
-            # Determine airline type for this leg
+            carrier_details = []
+            carrier_type_priority = {"Budget": 2, "Premium": 1, "Standard": 0}
             airline_type = "Standard"
-            if carrier_iata:
-                airline_type = self.getAirlineType(carrier_iata[0])  # Use first carrier for type
+
+            for idx_carrier, carrier_name in enumerate(carrier_names):
+                carrier_code = carrier_iata[idx_carrier] if idx_carrier < len(carrier_iata) else carrier_name
+                carrier_type = self.getAirlineType(carrier_code)
+                if carrier_type == "Standard":
+                    carrier_type = self.getAirlineType(carrier_name)
+                rate_adjustment = self.getAirlineRateAdjustmentLabel(carrier_type)
+
+                if carrier_type_priority[carrier_type] > carrier_type_priority[airline_type]:
+                    airline_type = carrier_type
+
+                carrier_details.append(
+                    {
+                        "name": carrier_name,
+                        "code": carrier_code,
+                        "type": carrier_type,
+                        "rate_adjustment": rate_adjustment,
+                    }
+                )
             
             legs.append(
                 {
@@ -375,7 +421,9 @@ class RouteService:
                     "duration_label": self.minutesToTime(minutes),
                     "carrier_names": carrier_names,
                     "carrier_iata": carrier_iata,
+                    "carrier_details": carrier_details,
                     "airline_type": airline_type,  # Add airline type to leg
+                    "airline_rate_adjustment": self.getAirlineRateAdjustmentLabel(airline_type),
                 }
             )
             
@@ -636,6 +684,90 @@ class RouteService:
         
         print(f"Returning best route and {len(alternatives)} alternatives")
         return result
+
+    def computeBellmanFordResults(self, sourceCode, destinationCode, mode, depart_date_str=None):
+        if sourceCode not in self.weightedGraph.graph or destinationCode not in self.weightedGraph.graph:
+            print(f"Airport not found: {sourceCode} or {destinationCode}")
+            return {"best": None, "routes": []}
+
+        weight_type = "price" if mode == "price" else "distance"
+
+        try:
+            shortest_path_codes, total_weight = self.bellmanFordSolver.getShortestPath(
+                sourceCode, destinationCode, weight_type
+            )
+        except ValueError as exc:
+            print(f"Bellman-Ford failed: {exc}")
+            return {"best": None, "routes": []}
+
+        if not shortest_path_codes:
+            print(f"No Bellman-Ford path found from {sourceCode} to {destinationCode}")
+            return {"best": None, "routes": []}
+
+        best = self._buildResultFromRoute(shortest_path_codes, mode, depart_date_str=depart_date_str)
+        if best:
+            best["mode"] = mode
+            if weight_type == "distance":
+                best["distance_exact"] = total_weight
+                best["flight_minutes"] = sum(
+                    self.weightedGraph.graph.get(shortest_path_codes[i], {})
+                    .get(shortest_path_codes[i + 1], {})
+                    .get("time", 0)
+                    for i in range(len(shortest_path_codes) - 1)
+                )
+            else:
+                best["price"] = round(total_weight, 2)
+            best["stops"] = len(shortest_path_codes) - 2
+
+        alternatives = []
+        seen_paths = {tuple(shortest_path_codes)}
+
+        try:
+            kPaths = self.yenSolver.findKShortestPath(
+                sourceCode, destinationCode, k=8, weight_type=weight_type
+            ) or []
+        except Exception as exc:
+            print(f"Error in Yen's algorithm: {exc}")
+            kPaths = []
+
+        if not isinstance(kPaths, list):
+            kPaths = []
+
+        for pathInfo in kPaths:
+            if not isinstance(pathInfo, dict):
+                continue
+
+            path = pathInfo.get("path")
+            if not path:
+                continue
+
+            path_key = tuple(path)
+            if path_key in seen_paths:
+                continue
+
+            if len(path) - 2 > 2:
+                continue
+
+            seen_paths.add(path_key)
+
+            alternative = self._buildResultFromRoute(path, mode, depart_date_str=depart_date_str)
+            if alternative:
+                alternative["mode"] = "alternative"
+                alternative["distance_exact"] = pathInfo.get("dist", alternative.get("distance_exact", 0))
+                alternative["flight_minutes"] = pathInfo.get("time", alternative.get("flight_minutes", 0))
+                if mode == "price":
+                    alternative["price"] = round(pathInfo.get("price", alternative.get("price", 0)), 2)
+                alternative["stops"] = len(path) - 2
+                alternatives.append(alternative)
+
+        if mode == "price":
+            alternatives.sort(key=lambda x: x.get("price", float("inf")))
+        elif mode == "stops":
+            alternatives.sort(key=lambda x: (x.get("stops", float("inf")), x.get("distance_exact", float("inf"))))
+        else:
+            alternatives.sort(key=lambda x: x.get("distance_exact", float("inf")))
+
+        return {"best": best, "routes": alternatives[:5]}
     
     def findBestBudgetLoop(self, sourceCode, budget, targetCities):
         origin = self.airportMeta.get(sourceCode)

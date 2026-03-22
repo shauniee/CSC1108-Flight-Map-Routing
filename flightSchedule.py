@@ -5,19 +5,10 @@ from datetime import datetime, timedelta, timezone
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "AirlineData"))
-from pricing import PriceCalculation
+from AirlineData.pricing import PriceCalculation
 
 
 class FlightSchedule:
-    """
-    Generates a route-data-driven daily timetable of flights between
-    two airports.
-
-    Uses real carrier names and distances from the dataset.
-    Aircraft type is selected based on route distance.
-    Departure times are spread realistically across the day.
-    Prices vary by time of day (peak/off-peak).
-    """
 
     _DEPARTURE_WINDOWS = [
         (5,  7),    # early morning

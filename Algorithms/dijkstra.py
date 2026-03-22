@@ -1,4 +1,3 @@
-# dijkstra.py
 import heapq
 from loadDataset import WeightedGraph
 
