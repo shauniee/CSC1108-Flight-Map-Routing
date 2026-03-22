@@ -10,8 +10,10 @@ from Algorithms.dfs import DFS
 from Algorithms.dijkstra import Dijkstra
 from flightSchedule import FlightSchedule
 from loadDataset import WeightedGraph
-from Algorithms.yen import Yen
-from AirlineData.pricing import PriceCalculation
+from yen import Yen
+from AirlineData.pricing import PriceCalculation  # Import the pricing class
+from budgetLoop import BudgetLoopSearch
+from AirlineData.pricing import PriceCalculation 
 
 
 class RouteService:
@@ -34,6 +36,7 @@ class RouteService:
         self.bellmanFordSolver = None
         self.yenSolver = None
         self.dfsSolver = None
+        self.budgetloopSolver = None
         self.betweennessSolver = None
         self.scheduleSolver = None
         self.priceCalculator = PriceCalculation(str(self.airlineClassificationFile))
@@ -76,6 +79,7 @@ class RouteService:
         self.bellmanFordSolver = BellmanFord(self.weightedGraph)
         self.yenSolver = Yen(self.weightedGraph, dijkstra=self.dijkstraSolver)
         self.dfsSolver = DFS(self._buildDfsGraph())
+        self.budgetloopSolver = BudgetLoopSearch(self.weightedGraph.graph)
         self.betweennessSolver = Betweenness(self.weightedGraph.graph)
 
         self.scheduleSolver = FlightSchedule(
@@ -765,6 +769,54 @@ class RouteService:
 
         return {"best": best, "routes": alternatives[:5]}
     
+    def findBestBudgetLoop(self, sourceCode, budget, targetCities):
+        origin = self.airportMeta.get(sourceCode)
+        if not origin or not self.budgetloopSolver:
+            return {
+                "type" : "budget-loop",
+                "origin" : None,
+                "budget" : budget,
+                "best_route" : None,
+                "target_cities" : targetCities,
+            }
+        
+        searchResult = self.budgetloopSolver.find_best_loop(sourceCode,budget, targetCities)
+
+        if not searchResult:
+            return {
+                "type" : "budget-loop",
+                "origin" : {
+                    "code" : sourceCode,
+                    "display_name" : origin.get("display_name", sourceCode),
+                    "city_name" : origin.get("city_name", ""),
+                    "country" : origin.get("country",""),
+                    
+                },
+                "budget" : budget,
+                "best_route" : None,
+                "target_cities" : targetCities,
+            }
+        
+        routeCodes = searchResult["path"]
+        builtRoute = self._buildResultFromRoute(routeCodes, "price")
+
+        if builtRoute:
+            builtRoute["price"] = searchResult["total_cost"]
+            builtRoute["cities_visited"] = searchResult["cities_visited"]
+            builtRoute["remaining_budget"] = searchResult["remaining_budget"]
+
+        return {
+                "type" : "budget-loop",
+                "origin" : {
+                    "code" : sourceCode,
+                    "display_name" : origin.get("display_name", sourceCode),
+                    "city_name" : origin.get("city_name", ""),
+                    "country" : origin.get("country",""),
+                },
+                "budget" : budget,
+                "best_route" : builtRoute,
+                "target_cities" : targetCities,
+        }
 
     def get_hubs(self, top_n: int = 20) -> list:
         """

@@ -100,11 +100,17 @@ def search():
     returnDate = request.form.get("return_date", "").strip()
     mode = request.form.get("mode", "distance").strip()
     radiusRaw = request.form.get("radius_km", "500").strip()
+    budgetRaw = request.form.get("budget", "500").strip()
+    targetCitiesRaw = request.form.get("target_cities", "3").strip()
 
     try:
         radiusKm = max(1.0, float(radiusRaw))
+        budget = max(1.0, float(budgetRaw))
+        targetCities = max(1, int(targetCitiesRaw))
     except ValueError:
         radiusKm = 500.0
+        budget = 500.0
+        targetCities = 2
 
     if searchType == "proximity":
         if not src:
@@ -116,6 +122,21 @@ def search():
 
         result = route_service.findAirportsWithinRadius(src, radiusKm)
         return render_template("nearby_results.html", src=src, result=result)
+    
+    if searchType == "budget_loop":
+        if not src:
+            return render_template(
+                "budget_results.html",
+                src=src or "N/A",
+                result = {
+                            "type" : "budget_loop",
+                            "origin" : None,
+                            "budget" : budget,
+                            "best_route" : None
+                        },
+            )
+        result = route_service.findBestBudgetLoop(src, budget, targetCities)
+        return render_template("budget_results.html",src=src, result = result)
 
     if not src or not dst or src == dst:
         return render_template(
