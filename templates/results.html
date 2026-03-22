@@ -145,9 +145,13 @@
       background: #edf4ff;
     }
 
-    #route-map {
+    .map-container {
       width: 100%;
       height: 430px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      background: #edf4ff;
     }
 
     .plane-icon-wrap {
@@ -228,6 +232,11 @@
     "alternative": "Alternative (Yen)",
     "direct": "Direct flights"
   } %}
+
+  <main class="container py-5">
+    <div class="d-flex justify-content-start mb-4">
+      <a href="/" class="btn btn-outline-primary px-4">Back to Dashboard</a>
+    </div>
 
   {% for current_result in [result, return_result] %}
     {% if current_result %}
@@ -510,10 +519,6 @@
       </div> <!-- End mb-5 -->
     {% endif %}
   {% endfor %}
-
-        <a href="/" class="btn btn-outline-primary px-4">Back to Dashboard</a>
-      </div>
-    </div>
   </main>
 
   <script
