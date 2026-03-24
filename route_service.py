@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from Algorithms.betweenness import Betweenness
+from Algorithms.astar import AStar
 from Algorithms.BellmanFord import BellmanFord
 from Algorithms.dfs import DFS
 from Algorithms.dijkstra import Dijkstra
@@ -32,6 +33,7 @@ class RouteService:
         self.airports = {}
         self.airportMeta = {}
         self.weightedGraph = WeightedGraph()
+        self.astarSolver = None
         self.dijkstraSolver = None
         self.bellmanFordSolver = None
         self.yenSolver = None
@@ -75,6 +77,7 @@ class RouteService:
         self.weightedGraph.buildGraphFromData(raw)
         self.airports = dict(sorted(airports.items(), key=lambda item: item[0]))
         self.airportMeta = airportMeta
+        self.astarSolver = AStar(self.weightedGraph)
         self.dijkstraSolver = Dijkstra(self.weightedGraph)
         self.bellmanFordSolver = BellmanFord(self.weightedGraph)
         self.yenSolver = Yen(self.weightedGraph, dijkstra=self.dijkstraSolver)
@@ -599,7 +602,7 @@ class RouteService:
         print(f"Finding path from {sourceCode} to {destinationCode} using {weight_type} optimization")
         
         # Find shortest path based on selected weight type with max 2 transits
-        shortestPathCodes, total_dist, total_time = self.dijkstraSolver.findShortestPath(
+        shortestPathCodes, total_dist, total_time = self.astarSolver.findShortestPath(
             sourceCode, destinationCode, weight_type
         )
         
