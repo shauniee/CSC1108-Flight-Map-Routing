@@ -483,9 +483,9 @@ class RouteService:
             if built:
                 builtRoutes.append(built)
 
-        if mode == "price":
+        if sort_by == "price":
             builtRoutes.sort(key=lambda item: (item.get("price", float("inf")), item.get("distance_exact", float("inf"))))
-        elif mode == "stops":
+        elif sort_by in ("stops", "connections"):
             builtRoutes.sort(key=lambda item: (item.get("stops", float("inf")), item.get("distance_exact", float("inf"))))
         else:
             builtRoutes.sort(key=lambda item: item.get("distance_exact", float("inf")))

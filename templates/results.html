@@ -961,6 +961,12 @@
   </form>
 
   <script>
+    const pricingState = {
+      outgoingFactor: 1,
+      incomingFactor: 1,
+      roundTripDiscountRate: 0.15,
+    };
+
     function submitRoute(routeValue, selectionTarget) {
       document.getElementById('route-form-route').value = routeValue;
       document.getElementById('route-form-selection-target').value = selectionTarget || 'outbound';
@@ -981,6 +987,47 @@
         badge.classList.add('standard-badge');
       }
       badge.textContent = type;
+    }
+
+    function parseCurrency(text) {
+      return parseFloat((text || '').replace(/[^0-9.\-]/g, '')) || 0;
+    }
+
+    function initializePricingState() {
+      const rows = Array.from(document.querySelectorAll('.segment-row'));
+      let outgoingRaw = 0;
+      let incomingRaw = 0;
+
+      rows.forEach((row) => {
+        const priceCell = row.querySelector('.segment-price-cell');
+        if (!priceCell) return;
+        const price = parseFloat(priceCell.dataset.price || '0') || 0;
+        const trip = row.dataset.trip || 'One-way';
+        if (trip === 'Incoming') {
+          incomingRaw += price;
+        } else {
+          outgoingRaw += price;
+        }
+      });
+
+      const outgoingEl = document.getElementById('outgoing-total');
+      const incomingEl = document.getElementById('incoming-total');
+      const discountEl = document.getElementById('discount-total');
+      const grandEl = document.getElementById('grand-total');
+
+      if (outgoingEl && incomingEl && discountEl && grandEl) {
+        const displayedOutgoing = parseCurrency(outgoingEl.textContent);
+        const displayedIncoming = parseCurrency(incomingEl.textContent);
+        const displayedDiscount = parseCurrency(discountEl.textContent);
+        const subtotal = displayedOutgoing + displayedIncoming;
+
+        pricingState.outgoingFactor = outgoingRaw > 0 ? displayedOutgoing / outgoingRaw : 1;
+        pricingState.incomingFactor = incomingRaw > 0 ? displayedIncoming / incomingRaw : 1;
+        pricingState.roundTripDiscountRate = subtotal > 0 ? displayedDiscount / subtotal : 0.15;
+      } else if (grandEl) {
+        const displayedGrand = parseCurrency(grandEl.textContent);
+        pricingState.outgoingFactor = outgoingRaw > 0 ? displayedGrand / outgoingRaw : 1;
+      }
     }
 
     function recalcSegmentTotals() {
@@ -1027,20 +1074,23 @@
       const standardCountEl = document.getElementById('airline-count-standard');
 
       if (outgoingEl && incomingEl && discountEl && grandEl) {
-        const subtotal = outgoingTotal + incomingTotal;
-        const discount = subtotal * 0.15;
+        const adjustedOutgoing = outgoingTotal * pricingState.outgoingFactor;
+        const adjustedIncoming = incomingTotal * pricingState.incomingFactor;
+        const subtotal = adjustedOutgoing + adjustedIncoming;
+        const discount = subtotal * pricingState.roundTripDiscountRate;
         const grand = subtotal - discount;
-        outgoingEl.textContent = formatCurrency(outgoingTotal);
-        incomingEl.textContent = formatCurrency(incomingTotal);
+        outgoingEl.textContent = formatCurrency(adjustedOutgoing);
+        incomingEl.textContent = formatCurrency(adjustedIncoming);
         discountEl.textContent = `- ${formatCurrency(discount)}`;
         grandEl.textContent = formatCurrency(grand);
         if (topPriceEl) {
           topPriceEl.textContent = formatCurrency(grand);
         }
       } else if (grandEl) {
-        grandEl.textContent = formatCurrency(outgoingTotal);
+        const adjustedOutgoing = outgoingTotal * pricingState.outgoingFactor;
+        grandEl.textContent = formatCurrency(adjustedOutgoing);
         if (topPriceEl) {
-          topPriceEl.textContent = formatCurrency(outgoingTotal);
+          topPriceEl.textContent = formatCurrency(adjustedOutgoing);
         }
       }
 
@@ -1088,6 +1138,7 @@
     }
 
     document.addEventListener('change', onCarrierChange);
+    initializePricingState();
     recalcSegmentTotals();
 
     function sortDfs(mode) {
