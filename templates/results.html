@@ -603,7 +603,7 @@
                     <tr class="segment-row" data-trip="Incoming">
                       <td><strong>#{{ best.get("legs", [])|length + loop.index }}</strong></td>
                       <td><strong>Incoming</strong></td>
-                      <td>{{ leg.from }} â†’ {{ leg.to }}</td>
+                      <td>{{ leg.from }} → {{ leg.to }}</td>
                       <td>{{ "%.1f"|format(leg.distance_km) }} km</td>
                       <td>{{ leg.duration_label }}</td>
                       <td>

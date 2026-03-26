@@ -155,16 +155,14 @@ class PriceCalculation:
     def applyAirlineFactor(self, price, carriers):
         if not carriers:
             return price, "Standard"
-
-        for carrier in carriers:
-            if self._resolveCarrierType(carrier) == "Budget":
-                return price * 0.8, "Budget"
-
-        for carrier in carriers:
-            if self._resolveCarrierType(carrier) == "Premium":
-                return price * 1.2, "Premium"
-
-        return price, "Standard"
+        type_priority = {"Budget": 0, "Standard": 1, "Premium": 2}
+        resolved_types = [self._resolveCarrierType(carrier) for carrier in carriers]
+        selected_type = min(
+            resolved_types,
+            key=lambda airline_type: type_priority.get(airline_type, 1),
+            default="Standard",
+        )
+        return self.applyAirlineTypeFactor(price, selected_type), selected_type
 
     def getCarrierPriceOptions(self, distance, carriers=None, directFlight=False, connectingAirport=None):
         base_info = self.calculateBaseSegmentPrice(

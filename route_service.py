@@ -390,7 +390,7 @@ class RouteService:
             toMeta = self.airportMeta.get(toCode, {})
             
             carrier_details = []
-            carrier_type_priority = {"Budget": 2, "Premium": 1, "Standard": 0}
+            display_priority = {"Budget": 0, "Standard": 1, "Premium": 2}
             airline_type = "Standard"
 
             for idx_carrier, carrier_name in enumerate(carrier_names):
@@ -400,9 +400,6 @@ class RouteService:
                     carrier_type = self.getAirlineType(carrier_name)
                 rate_adjustment = self.getAirlineRateAdjustmentLabel(carrier_type)
 
-                if carrier_type_priority[carrier_type] > carrier_type_priority[airline_type]:
-                    airline_type = carrier_type
-
                 carrier_details.append(
                     {
                         "name": carrier_name,
@@ -411,6 +408,10 @@ class RouteService:
                         "rate_adjustment": rate_adjustment,
                     }
                 )
+
+            carrier_details.sort(key=lambda item: (display_priority.get(item["type"], 3), item["name"]))
+            if carrier_details:
+                airline_type = carrier_details[0]["type"]
             
             legs.append(
                 {
